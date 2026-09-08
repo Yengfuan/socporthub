@@ -3,6 +3,7 @@ import { statusBadge } from "../components/status-badge.js";
 import { proposalCard } from "../components/proposal-card.js";
 
 const STATUS_LABELS = {
+  draft: "Drafts",
   needs_action: "Needs Action",
   in_review: "In Review",
   submitted: "Submitted",

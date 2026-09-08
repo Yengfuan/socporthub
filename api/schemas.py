@@ -56,6 +56,7 @@ class ProposalCreateRequest(BaseModel):
     description: str | None = None
     doc_link: str | None = None
     blast_message: str | None = None
+    save_draft: bool = False
     event_date: date | None = None
 
 
@@ -94,6 +95,7 @@ class ProposalOut(BaseModel):
 
 
 class ProposalStatusCounts(BaseModel):
+    draft: int = 0
     needs_action: int = 0
     in_review: int = 0
     submitted: int = 0

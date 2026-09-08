@@ -544,9 +544,10 @@ SECRET_KEY=                   # For session/HMAC
 - [x] Add save button and functionality for proposal submission for review
 - [x] Add poster section and blast message section for user upload, for admin to view
 - [x] Add a section in the New Proposal page above 'Description' named 'Category' with these categories: Event, Initiative, Decor, Pantry Cleaning
-- [x] For Event and Initiative, a poster must be submitted
-- [x] For decor, a link/pdf must be submitted, the poster section can be hidden
-- [x] For pantry, no poster or link/pdf needs to be submitteed, these sections can be hidden
+- [x] For Event and Initiative, a poster, link/PDF URL, and blast message must be submitted
+- [x] For Decor, no poster or link/PDF is required
+- [x] For Pantry Cleaning, no poster or link/PDF is required
+- [x] For Merch, a poster and link/PDF URL are required; description, event date, and blast message are optional
 
 ### Phase 6 — AI Reviewer [DEFERRED]
 - [ ] Google Docs API read access

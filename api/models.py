@@ -32,6 +32,7 @@ class UserStatus(str, enum.Enum):
 
 
 class ProposalStatus(str, enum.Enum):
+    draft = "draft"
     needs_action = "needs_action"
     in_review = "in_review"
     submitted = "submitted"
@@ -43,6 +44,7 @@ class ProposalCategory(str, enum.Enum):
     initiative = "initiative"
     decor = "decor"
     pantry_cleaning = "pantry_cleaning"
+    merch = "merch"
 
 
 class ReminderTargetType(str, enum.Enum):
@@ -53,6 +55,7 @@ class ReminderTargetType(str, enum.Enum):
 
 # Server-side allowed forward transitions for proposal status.
 PROPOSAL_STATUS_TRANSITIONS: dict[ProposalStatus, set[ProposalStatus]] = {
+    ProposalStatus.draft: {ProposalStatus.needs_action},
     ProposalStatus.needs_action: {ProposalStatus.in_review},
     ProposalStatus.in_review: {ProposalStatus.submitted, ProposalStatus.needs_action},
     ProposalStatus.submitted: {ProposalStatus.finished},

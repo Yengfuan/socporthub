@@ -1,4 +1,5 @@
 const LABELS = {
+  draft: "Draft",
   needs_action: "Needs Action",
   in_review: "In Review",
   submitted: "Submitted",

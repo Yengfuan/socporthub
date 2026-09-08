@@ -99,8 +99,6 @@ async def create_proposal(
 ) -> ProposalOut:
     if not user.committee_ids:
         raise HTTPException(status.HTTP_400_BAD_REQUEST, "You are not assigned to a committee yet")
-    if req.category == ProposalCategory.decor and not req.doc_link:
-        raise HTTPException(status.HTTP_400_BAD_REQUEST, "A link or PDF is required for decor proposals")
     # A user may belong to multiple committees; submit under the first for MVP simplicity.
     committee_id = sorted(user.committee_ids)[0]
 
@@ -113,13 +111,14 @@ async def create_proposal(
         doc_link=req.doc_link,
         blast_message=req.blast_message,
         event_date=req.event_date,
-        status=ProposalStatus.needs_action,
+        status=ProposalStatus.draft if req.save_draft else ProposalStatus.needs_action,
     )
     db.add(proposal)
     db.commit()
     db.refresh(proposal)
 
-    await notify_admins_new_proposal(proposal.title, user.display_name or user.email)
+    if not req.save_draft:
+        await notify_admins_new_proposal(proposal.title, user.display_name or user.email)
 
     return _to_out(proposal)
 
@@ -152,7 +151,8 @@ async def update_proposal(
     is_owner = proposal.submitted_by == user.id
 
     if req.status is not None:
-        if not is_admin:
+        owner_submitting_draft = is_owner and proposal.status == ProposalStatus.draft and req.status == ProposalStatus.needs_action
+        if not is_admin and not owner_submitting_draft:
             raise HTTPException(status.HTTP_403_FORBIDDEN, "Only admins can change status")
         allowed = PROPOSAL_STATUS_TRANSITIONS.get(proposal.status, set())
         if req.status not in allowed:
@@ -168,7 +168,7 @@ async def update_proposal(
     # Omitting the key entirely means "leave this field alone".
     provided_content_fields = req.model_fields_set & set(content_fields)
     if provided_content_fields:
-        if not is_admin and not (is_owner and proposal.status == ProposalStatus.needs_action):
+        if not is_admin and not (is_owner and proposal.status in (ProposalStatus.draft, ProposalStatus.needs_action)):
             raise HTTPException(
                 status.HTTP_403_FORBIDDEN,
                 "Proposal can only be edited by its owner while in needs_action",
@@ -179,10 +179,13 @@ async def update_proposal(
             setattr(proposal, field, getattr(req, field))
 
     if req.status == ProposalStatus.in_review:
-        if proposal.category in (ProposalCategory.event, ProposalCategory.initiative) and not proposal.poster_data:
-            raise HTTPException(status.HTTP_400_BAD_REQUEST, "A poster is required for this category")
-        if proposal.category == ProposalCategory.decor and not proposal.doc_link:
-            raise HTTPException(status.HTTP_400_BAD_REQUEST, "A link or PDF is required for decor proposals")
+        if proposal.category in (ProposalCategory.event, ProposalCategory.initiative, ProposalCategory.merch):
+            if not proposal.poster_data:
+                raise HTTPException(status.HTTP_400_BAD_REQUEST, "A poster is required for this category")
+            if not proposal.doc_link:
+                raise HTTPException(status.HTTP_400_BAD_REQUEST, "A link or PDF URL is required for this category")
+        if proposal.category in (ProposalCategory.event, ProposalCategory.initiative) and not proposal.blast_message:
+            raise HTTPException(status.HTTP_400_BAD_REQUEST, "A blast message is required for this category")
 
     if req.comment:
         db.add(ProposalComment(proposal_id=proposal.id, author_id=user.id, body=req.comment))
@@ -219,10 +222,10 @@ async def upload_poster(
     user: User = Depends(get_current_user),
 ) -> ProposalOut:
     proposal = get_visible_proposal(db, user, proposal_id)
-    if proposal.submitted_by != user.id or proposal.status != ProposalStatus.needs_action:
+    if proposal.submitted_by != user.id or proposal.status not in (ProposalStatus.draft, ProposalStatus.needs_action):
         raise HTTPException(status.HTTP_403_FORBIDDEN, "Only the owner can upload a poster while editing")
-    if proposal.category not in (ProposalCategory.event, ProposalCategory.initiative):
-        raise HTTPException(status.HTTP_400_BAD_REQUEST, "Posters are only used for Event and Initiative proposals")
+    if proposal.category not in (ProposalCategory.event, ProposalCategory.initiative, ProposalCategory.merch):
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, "Posters are only used for Event, Initiative, and Merch proposals")
     if poster.content_type not in {"image/jpeg", "image/png", "image/webp", "application/pdf"}:
         raise HTTPException(status.HTTP_400_BAD_REQUEST, "Poster must be a PDF, PNG, JPG, or WEBP file")
     data = await poster.read()

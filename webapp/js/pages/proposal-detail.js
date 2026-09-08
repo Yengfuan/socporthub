@@ -3,12 +3,14 @@ import { statusBadge } from "../components/status-badge.js";
 import { renderDisposableSection } from "../components/disposable-form.js";
 
 const NEXT_STATUS = {
+  draft: "needs_action",
   needs_action: "in_review",
   in_review: "submitted",
   submitted: "finished",
 };
 
 const NEXT_STATUS_LABEL = {
+  draft: "Submit for Review",
   needs_action: "Move to In Review",
   in_review: "Mark Submitted",
   submitted: "Mark Finished",
@@ -30,8 +32,7 @@ function formatTimestamp(iso) {
 }
 
 export function renderNewProposal(root, navigate) {
-  const draftKey = "social-port-hub-proposal-draft";
-  const saved = JSON.parse(localStorage.getItem(draftKey) || "null") || {};
+  const saved = {};
   root.innerHTML = `
     <div class="page-header">
       <span class="back" data-nav="home">&larr; Back</span>
@@ -49,6 +50,7 @@ export function renderNewProposal(root, navigate) {
           <option value="initiative" ${saved.category === "initiative" ? "selected" : ""}>Initiative</option>
           <option value="decor" ${saved.category === "decor" ? "selected" : ""}>Decor</option>
           <option value="pantry_cleaning" ${!saved.category || saved.category === "pantry_cleaning" ? "selected" : ""}>Pantry Cleaning</option>
+          <option value="merch" ${saved.category === "merch" ? "selected" : ""}>Merch</option>
         </select>
       </div>
       <div class="field">
@@ -64,7 +66,7 @@ export function renderNewProposal(root, navigate) {
         <input type="url" id="doc_link" name="doc_link" placeholder="https://" value="${escapeHtml(saved.doc_link)}" />
       </div>
       <div class="field" id="poster-field">
-        <label for="poster">Poster <span class="field-hint">Required for Event and Initiative</span></label>
+        <label for="poster">Poster <span class="field-hint">Required for Event, Initiative, and Merch</span></label>
         <input type="file" id="poster" name="poster" accept="image/jpeg,image/png,image/webp,application/pdf" />
       </div>
       <div class="field">
@@ -81,19 +83,43 @@ export function renderNewProposal(root, navigate) {
   const posterField = root.querySelector("#poster-field");
   const docLink = root.querySelector("#doc_link");
   const updateRequirements = () => {
-    const needsPoster = ["event", "initiative"].includes(category.value);
-    const needsDoc = category.value === "decor";
+    const needsPoster = ["event", "initiative", "merch"].includes(category.value);
+    const needsDoc = ["event", "initiative", "merch"].includes(category.value);
+    const needsBlast = ["event", "initiative"].includes(category.value);
     posterField.style.display = needsPoster ? "block" : "none";
     root.querySelector("#poster").required = false; // upload happens after proposal creation
-    docLink.required = needsDoc;
-    root.querySelector("#doc-required-hint").textContent = needsDoc ? "(required for Decor)" : "(optional)";
+    docLink.required = false;
+    root.querySelector("#doc-required-hint").textContent = needsDoc ? "(required for this category)" : "(optional)";
+    root.querySelector("#blast_message").required = false;
+    root.querySelector("#blast_message").previousElementSibling.innerHTML = `Blast message ${needsBlast ? "<span class=\"field-hint\">(required for this category)</span>" : "(optional)"}`;
   };
   category.addEventListener("change", updateRequirements);
   updateRequirements();
 
-  root.querySelector("#save-draft").addEventListener("click", () => {
-    localStorage.setItem(draftKey, JSON.stringify(Object.fromEntries(new FormData(form).entries())));
-    root.querySelector("#form-error").innerHTML = `<p>Draft saved on this device.</p>`;
+  root.querySelector("#save-draft").addEventListener("click", async () => {
+    const saveButton = root.querySelector("#save-draft");
+    saveButton.disabled = true;
+    try {
+      const proposal = await api.post("/api/proposals", {
+        title: form.title.value.trim() || "Untitled draft",
+        category: form.category.value,
+        description: form.description.value.trim() || null,
+        event_date: form.event_date.value || null,
+        doc_link: form.doc_link.value.trim() || null,
+        blast_message: form.blast_message.value.trim() || null,
+        save_draft: true,
+      });
+      const poster = form.poster.files[0];
+      if (poster) {
+        const formData = new FormData();
+        formData.append("poster", poster);
+        await api.upload(`/api/proposals/${proposal.id}/poster`, formData);
+      }
+      navigate("home");
+    } catch (err) {
+      root.querySelector("#form-error").innerHTML = `<div class="error-banner">${escapeHtml(err.message)}</div>`;
+      saveButton.disabled = false;
+    }
   });
 
   root.querySelector("#proposal-form").addEventListener("submit", async (e) => {
@@ -107,11 +133,14 @@ export function renderNewProposal(root, navigate) {
     try {
       const categoryValue = e.target.category.value;
       const poster = e.target.poster.files[0];
-      if (["event", "initiative"].includes(categoryValue) && !poster) {
+      if (["event", "initiative", "merch"].includes(categoryValue) && !poster) {
         throw new Error("Please select a poster for this category.");
       }
-      if (categoryValue === "decor" && !e.target.doc_link.value.trim()) {
-        throw new Error("Please provide a link or PDF URL for Decor.");
+      if (["event", "initiative", "merch"].includes(categoryValue) && !e.target.doc_link.value.trim()) {
+        throw new Error("Please provide a link or PDF URL for this category.");
+      }
+      if (["event", "initiative"].includes(categoryValue) && !e.target.blast_message.value.trim()) {
+        throw new Error("Please provide a blast message for this category.");
       }
       const proposal = await api.post("/api/proposals", {
         title: e.target.title.value.trim(),
@@ -125,10 +154,9 @@ export function renderNewProposal(root, navigate) {
         const formData = new FormData();
         formData.append("poster", poster);
         await api.upload(`/api/proposals/${proposal.id}/poster`, formData);
-      } else if (["event", "initiative"].includes(e.target.category.value)) {
+      } else if (["event", "initiative", "merch"].includes(e.target.category.value)) {
         throw new Error("Please select a poster for this category.");
       }
-      localStorage.removeItem(draftKey);
       navigate(`proposal/${proposal.id}`);
     } catch (err) {
       errorEl.innerHTML = `<div class="error-banner">${err.message}</div>`;
@@ -149,8 +177,9 @@ export async function renderProposalDetail(root, user, proposalId, navigate) {
   const isOwner = proposal.submitted_by === user.id;
   // Admins can edit a proposal's fields (including clearing a stray event_date) at any
   // status; a regular owner can only edit their own while it's still needs_action.
-  const canEdit = isAdmin || (isOwner && proposal.status === "needs_action");
+  const canEdit = isAdmin || (isOwner && ["draft", "needs_action"].includes(proposal.status));
   const nextStatus = NEXT_STATUS[proposal.status];
+  const canSubmitDraft = isOwner && proposal.status === "draft";
 
   root.innerHTML = `
     <div class="page-header">
@@ -198,7 +227,7 @@ export async function renderProposalDetail(root, user, proposalId, navigate) {
         : ""
     }
     ${
-      isAdmin && nextStatus
+      (isAdmin || canSubmitDraft) && nextStatus
         ? `<button class="btn" id="advance-btn">${NEXT_STATUS_LABEL[proposal.status]}</button>`
         : ""
     }
@@ -325,6 +354,7 @@ function renderEditForm(slot, proposal, navigate) {
           <option value="initiative" ${proposal.category === "initiative" ? "selected" : ""}>Initiative</option>
           <option value="decor" ${proposal.category === "decor" ? "selected" : ""}>Decor</option>
           <option value="pantry_cleaning" ${proposal.category === "pantry_cleaning" ? "selected" : ""}>Pantry Cleaning</option>
+          <option value="merch" ${proposal.category === "merch" ? "selected" : ""}>Merch</option>
         </select>
       </div>
       <div class="field">
