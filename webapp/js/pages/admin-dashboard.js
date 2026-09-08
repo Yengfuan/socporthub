@@ -11,14 +11,6 @@ const STATUS_LABELS = {
   finished: "Finished",
 };
 
-const CATEGORY_LABELS = {
-  event: "Event",
-  initiative: "Initiative",
-  decor: "Decor",
-  pantry_cleaning: "Pantry Cleaning",
-  merch: "Merch",
-};
-
 function escapeHtml(s) {
   const div = document.createElement("div");
   div.textContent = s ?? "";
@@ -113,7 +105,7 @@ async function renderDisposablesSection(content) {
   });
 }
 
-async function renderProposalsSection(content, committeeId = null, category = null) {
+async function renderProposalsSection(content, committeeId = null, statusFilter = null) {
   const committees = await api.get("/api/committees");
   const query = committeeId ? `?committee_id=${committeeId}` : "";
   const [summary, allProposals] = await Promise.all([
@@ -121,7 +113,7 @@ async function renderProposalsSection(content, committeeId = null, category = nu
     api.get(`/api/proposals${query}`),
   ]);
   // Drafts are private to their owner until submitted — never show them to admins.
-  const proposals = allProposals.filter((p) => p.status !== "draft" && (!category || p.category === category));
+  const proposals = allProposals.filter((p) => p.status !== "draft" && (!statusFilter || p.status === statusFilter));
 
   content.innerHTML = `
     <div class="chip-row">
@@ -132,9 +124,9 @@ async function renderProposalsSection(content, committeeId = null, category = nu
     </div>
 
     <div class="chip-row">
-      <div class="chip ${!category ? "active" : ""}" data-category="">All categories</div>
-      ${Object.entries(CATEGORY_LABELS)
-        .map(([key, label]) => `<div class="chip ${category === key ? "active" : ""}" data-category="${key}">${label}</div>`)
+      <div class="chip ${!statusFilter ? "active" : ""}" data-status="">All</div>
+      ${Object.entries(STATUS_LABELS)
+        .map(([key, label]) => `<div class="chip ${statusFilter === key ? "active" : ""}" data-status="${key}">${label}</div>`)
         .join("")}
     </div>
 
@@ -155,12 +147,12 @@ async function renderProposalsSection(content, committeeId = null, category = nu
   content.querySelectorAll("[data-committee]").forEach((chip) => {
     chip.addEventListener("click", () => {
       const id = chip.dataset.committee || null;
-      renderProposalsSection(content, id, category);
+      renderProposalsSection(content, id, statusFilter);
     });
   });
-  content.querySelectorAll("[data-category]").forEach((chip) => {
+  content.querySelectorAll("[data-status]").forEach((chip) => {
     chip.addEventListener("click", () => {
-      renderProposalsSection(content, committeeId, chip.dataset.category || null);
+      renderProposalsSection(content, committeeId, chip.dataset.status || null);
     });
   });
 }
