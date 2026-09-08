@@ -2,7 +2,7 @@ from datetime import date, datetime
 
 from pydantic import BaseModel, ConfigDict, EmailStr
 
-from api.models import ProposalStatus, ReminderTargetType, UserRole, UserStatus
+from api.models import ProposalCategory, ProposalStatus, ReminderTargetType, UserRole, UserStatus
 
 
 # --- Auth ---
@@ -52,15 +52,19 @@ class UserUpdateRequest(BaseModel):
 
 class ProposalCreateRequest(BaseModel):
     title: str
+    category: ProposalCategory = ProposalCategory.pantry_cleaning
     description: str | None = None
     doc_link: str | None = None
+    blast_message: str | None = None
     event_date: date | None = None
 
 
 class ProposalUpdateRequest(BaseModel):
+    category: ProposalCategory | None = None
     title: str | None = None
     description: str | None = None
     doc_link: str | None = None
+    blast_message: str | None = None
     event_date: date | None = None
     status: ProposalStatus | None = None
     # Optional note attached to a status change (e.g. why it was sent back to
@@ -77,8 +81,12 @@ class ProposalOut(BaseModel):
     submitted_by: int
     submitter_name: str | None
     title: str
+    category: ProposalCategory
     description: str | None
     doc_link: str | None
+    blast_message: str | None
+    poster_filename: str | None
+    poster_content_type: str | None
     status: ProposalStatus
     event_date: date | None
     created_at: datetime
@@ -119,6 +127,7 @@ class DisposableRequestUpsert(BaseModel):
     forks: int = 0
     spoons: int = 0
     collection_date: date
+    collection_time: str | None = None
 
 
 class DisposableRequestUpdate(BaseModel):
@@ -139,6 +148,7 @@ class DisposableRequestOut(BaseModel):
     forks: int
     spoons: int
     collection_date: date
+    collection_time: str | None
     approved: bool
     created_at: datetime
 

@@ -19,6 +19,7 @@ export async function renderDisposableSection(container, user, proposal) {
           ? `<p style="color:var(--text)">
                Plates: ${existing.plates} · Cups: ${existing.cups} · Forks: ${existing.forks} · Spoons: ${existing.spoons}<br/>
                Collection date: ${existing.collection_date}
+               ${existing.collection_time ? `<br/>Collection time: ${existing.collection_time}` : ""}
              </p>
              <span class="badge ${existing.approved ? "badge-approved" : "badge-pending"}">
                ${existing.approved ? "Approved" : "Pending approval"}
@@ -68,6 +69,10 @@ function renderForm(slot, proposal, existing, onSaved) {
         <label for="d-collection_date">Collection date</label>
         <input type="date" id="d-collection_date" value="${existing?.collection_date ?? ""}" required />
       </div>
+      <div class="field">
+        <label for="d-collection_time">Collection time (optional)</label>
+        <input type="time" id="d-collection_time" value="${existing?.collection_time ?? ""}" />
+      </div>
       <div id="disposable-error"></div>
       <button type="submit" class="btn">Save Request</button>
     </form>
@@ -83,6 +88,7 @@ function renderForm(slot, proposal, existing, onSaved) {
         forks: Number(slot.querySelector("#d-forks").value) || 0,
         spoons: Number(slot.querySelector("#d-spoons").value) || 0,
         collection_date: slot.querySelector("#d-collection_date").value,
+        collection_time: slot.querySelector("#d-collection_time").value || null,
       });
       onSaved();
     } catch (err) {

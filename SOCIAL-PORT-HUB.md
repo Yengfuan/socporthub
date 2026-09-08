@@ -535,14 +535,18 @@ SECRET_KEY=                   # For session/HMAC
 - [x] Admin reminder inbox with badge count
 
 ### Phase 5 — Polish
-- [ ] Admin committee tabs with per-committee filtering
-- [ ] Bot inline commands (`/status`, `/pending`)
-- [ ] Scheduled morning notification for today's disposable collections
-- [ ] Empty states, loading states, error handling
+- [x] Admin committee tabs with per-committee filtering
+- [x] Bot inline commands (`/status`, `/pending`)
+- [x] Scheduled morning notification for today's disposable collections
+- [x] Empty states, loading states, error handling
 - [ ] Mobile UI pass — test in actual Telegram WebApp
-- [ ] Add time to disposables collection requests
-- [ ] Add save button and functionality for proposal submission for review
-- [ ] Add poster section and blast message section for user upload, for admin to view
+- [x] Add time to disposables collection requests
+- [x] Add save button and functionality for proposal submission for review
+- [x] Add poster section and blast message section for user upload, for admin to view
+- [x] Add a section in the New Proposal page above 'Description' named 'Category' with these categories: Event, Initiative, Decor, Pantry Cleaning
+- [x] For Event and Initiative, a poster must be submitted
+- [x] For decor, a link/pdf must be submitted, the poster section can be hidden
+- [x] For pantry, no poster or link/pdf needs to be submitteed, these sections can be hidden
 
 ### Phase 6 — AI Reviewer [DEFERRED]
 - [ ] Google Docs API read access

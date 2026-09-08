@@ -1,4 +1,5 @@
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, File, HTTPException, UploadFile, status
+from fastapi.responses import Response
 from sqlalchemy.orm import Session
 
 from api.auth import get_current_user
@@ -8,7 +9,7 @@ from api.models import (
     CalendarEvent,
     Proposal,
     ProposalComment,
-    ProposalStatus,
+    ProposalCategory, ProposalStatus,
     User,
     UserRole,
 )
@@ -36,8 +37,12 @@ def _to_out(p: Proposal) -> ProposalOut:
         submitted_by=p.submitted_by,
         submitter_name=p.submitter.display_name,
         title=p.title,
+        category=p.category,
         description=p.description,
         doc_link=p.doc_link,
+        blast_message=p.blast_message,
+        poster_filename=p.poster_filename,
+        poster_content_type=p.poster_content_type,
         status=p.status,
         event_date=p.event_date,
         created_at=p.created_at,
@@ -94,6 +99,8 @@ async def create_proposal(
 ) -> ProposalOut:
     if not user.committee_ids:
         raise HTTPException(status.HTTP_400_BAD_REQUEST, "You are not assigned to a committee yet")
+    if req.category == ProposalCategory.decor and not req.doc_link:
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, "A link or PDF is required for decor proposals")
     # A user may belong to multiple committees; submit under the first for MVP simplicity.
     committee_id = sorted(user.committee_ids)[0]
 
@@ -101,8 +108,10 @@ async def create_proposal(
         committee_id=committee_id,
         submitted_by=user.id,
         title=req.title,
+        category=req.category,
         description=req.description,
         doc_link=req.doc_link,
+        blast_message=req.blast_message,
         event_date=req.event_date,
         status=ProposalStatus.needs_action,
     )
@@ -153,7 +162,7 @@ async def update_proposal(
             )
         proposal.status = req.status
 
-    content_fields = ("title", "description", "doc_link", "event_date")
+    content_fields = ("category", "title", "description", "doc_link", "blast_message", "event_date")
     # Use model_fields_set (not "is not None") so a client can explicitly clear a
     # nullable field — e.g. {"event_date": null} — by including the key in the payload.
     # Omitting the key entirely means "leave this field alone".
@@ -168,6 +177,12 @@ async def update_proposal(
             raise HTTPException(status.HTTP_400_BAD_REQUEST, "title cannot be cleared")
         for field in provided_content_fields:
             setattr(proposal, field, getattr(req, field))
+
+    if req.status == ProposalStatus.in_review:
+        if proposal.category in (ProposalCategory.event, ProposalCategory.initiative) and not proposal.poster_data:
+            raise HTTPException(status.HTTP_400_BAD_REQUEST, "A poster is required for this category")
+        if proposal.category == ProposalCategory.decor and not proposal.doc_link:
+            raise HTTPException(status.HTTP_400_BAD_REQUEST, "A link or PDF is required for decor proposals")
 
     if req.comment:
         db.add(ProposalComment(proposal_id=proposal.id, author_id=user.id, body=req.comment))
@@ -194,6 +209,43 @@ async def update_proposal(
         )
 
     return _to_out(proposal)
+
+
+@router.post("/{proposal_id}/poster", response_model=ProposalOut)
+async def upload_poster(
+    proposal_id: int,
+    poster: UploadFile = File(...),
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
+) -> ProposalOut:
+    proposal = get_visible_proposal(db, user, proposal_id)
+    if proposal.submitted_by != user.id or proposal.status != ProposalStatus.needs_action:
+        raise HTTPException(status.HTTP_403_FORBIDDEN, "Only the owner can upload a poster while editing")
+    if proposal.category not in (ProposalCategory.event, ProposalCategory.initiative):
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, "Posters are only used for Event and Initiative proposals")
+    if poster.content_type not in {"image/jpeg", "image/png", "image/webp", "application/pdf"}:
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, "Poster must be a PDF, PNG, JPG, or WEBP file")
+    data = await poster.read()
+    if len(data) > 10 * 1024 * 1024:
+        raise HTTPException(status.HTTP_413_REQUEST_ENTITY_TOO_LARGE, "Poster must be 10 MB or smaller")
+    proposal.poster_filename = poster.filename or "poster"
+    proposal.poster_content_type = poster.content_type
+    proposal.poster_data = data
+    db.commit()
+    db.refresh(proposal)
+    return _to_out(proposal)
+
+
+@router.get("/{proposal_id}/poster")
+def download_poster(proposal_id: int, db: Session = Depends(get_db), user: User = Depends(get_current_user)) -> Response:
+    proposal = get_visible_proposal(db, user, proposal_id)
+    if not proposal.poster_data or not proposal.poster_content_type:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Poster not found")
+    return Response(
+        content=proposal.poster_data,
+        media_type=proposal.poster_content_type,
+        headers={"Content-Disposition": f'inline; filename="{proposal.poster_filename or "poster"}"'},
+    )
 
 
 def _comment_to_out(c: ProposalComment) -> ProposalCommentOut:

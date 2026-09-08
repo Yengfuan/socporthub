@@ -41,8 +41,10 @@ export async function renderCalendar(root, user, state = {}) {
 
   const { start, end, first, last } = gridRange(year, month);
   const eventsByDate = groupByDate(events, (e) => e.date);
+  // Only show a proposal's date on the calendar once it's confirmed enough to matter —
+  // needs_action/in_review are still "not yet decided", so they'd be noise here.
   const proposalDatesByDate = groupByDate(
-    proposals.filter((p) => p.event_date),
+    proposals.filter((p) => p.event_date && (p.status === "submitted" || p.status === "finished")),
     (p) => p.event_date
   );
 

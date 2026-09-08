@@ -1,4 +1,5 @@
 import logging
+import asyncio
 
 from fastapi import FastAPI
 from fastapi.staticfiles import StaticFiles
@@ -8,6 +9,22 @@ from api.routes import auth, calendar, committees, disposables, email, proposals
 logging.basicConfig(level=logging.INFO)
 
 app = FastAPI(title="Social Port Hub API")
+collection_reminder_task = None
+
+
+@app.on_event("startup")
+async def start_scheduled_notifications() -> None:
+    global collection_reminder_task
+    from api.config import get_settings
+    if get_settings().environment == "production":
+        from api.services.scheduled_notifications import collection_reminder_loop
+        collection_reminder_task = asyncio.create_task(collection_reminder_loop())
+
+
+@app.on_event("shutdown")
+async def stop_scheduled_notifications() -> None:
+    if collection_reminder_task:
+        collection_reminder_task.cancel()
 
 app.include_router(auth.router)
 app.include_router(users.router)

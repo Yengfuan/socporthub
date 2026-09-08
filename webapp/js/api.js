@@ -17,13 +17,14 @@ class ApiError extends Error {
 }
 
 async function request(method, path, body) {
+  const isForm = body instanceof FormData;
   const res = await fetch(path, {
     method,
     headers: {
-      "Content-Type": "application/json",
+      ...(isForm ? {} : { "Content-Type": "application/json" }),
       "X-Telegram-Init-Data": getInitData(),
     },
-    body: body !== undefined ? JSON.stringify(body) : undefined,
+    body: body !== undefined ? (isForm ? body : JSON.stringify(body)) : undefined,
   });
 
   if (!res.ok) {
@@ -45,6 +46,7 @@ export const api = {
   get: (path) => request("GET", path),
   post: (path, body) => request("POST", path, body),
   patch: (path, body) => request("PATCH", path, body),
+  upload: (path, body) => request("POST", path, body),
   delete: (path) => request("DELETE", path),
   ApiError,
   getInitData,

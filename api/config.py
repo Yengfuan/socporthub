@@ -21,6 +21,8 @@ class Settings(BaseSettings):
     calendar_feed_token: str = ""
     resend_api_key: str = ""
     resend_from_email: str = ""
+    app_timezone: str = "Asia/Kuala_Lumpur"
+    collection_reminder_hour: int = 8
 
     @property
     def admin_telegram_id_set(self) -> set[int]:

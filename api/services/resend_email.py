@@ -26,6 +26,12 @@ async def send_email(*, to: str, subject: str, body: str) -> None:
                 json={"from": settings.resend_from_email, "to": [to], "subject": subject, "text": body},
             )
             response.raise_for_status()
+    except httpx.HTTPStatusError as exc:
+        # Resend's response body explains exactly why the send was rejected (unverified
+        # sender domain, recipient restrictions on an unverified account, etc.) — the
+        # generic exception message alone doesn't include it.
+        logger.error("Resend rejected email to %s: %s", to, exc.response.text)
+        raise HTTPException(status.HTTP_502_BAD_GATEWAY, f"Email provider error: {exc.response.text}") from exc
     except httpx.HTTPError as exc:
-        logger.exception("Resend failed for %s", to)
+        logger.exception("Resend request failed for %s", to)
         raise HTTPException(status.HTTP_502_BAD_GATEWAY, "Email provider error") from exc

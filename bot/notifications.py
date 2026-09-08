@@ -70,3 +70,12 @@ async def notify_admins_reminder(sender_name: str, message: str) -> None:
     text = f"🔔 Reminder from <b>{escape(sender_name)}</b>\n\n{escape(message)}"
     for admin_id in settings.admin_telegram_id_set:
         await send_message(admin_id, text)
+
+
+async def notify_admins_todays_collections(collections: list[tuple[str, str, str]]) -> None:
+    settings = get_settings()
+    if not collections:
+        return
+    lines = [f"• {title} ({committee}) — {when}" for title, committee, when in collections]
+    for admin_id in settings.admin_telegram_id_set:
+        await send_message(admin_id, "🌅 <b>Today's disposable collections</b>\n" + "\n".join(lines))

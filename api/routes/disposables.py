@@ -1,4 +1,4 @@
-from datetime import date
+from datetime import date, time
 
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
@@ -26,6 +26,7 @@ def _to_out(d: DisposableRequest) -> DisposableRequestOut:
         forks=d.forks,
         spoons=d.spoons,
         collection_date=d.collection_date,
+        collection_time=d.collection_time.isoformat() if d.collection_time else None,
         approved=d.approved,
         created_at=d.created_at,
     )
@@ -84,6 +85,10 @@ async def upsert_disposable(
     disposable.forks = req.forks
     disposable.spoons = req.spoons
     disposable.collection_date = req.collection_date
+    try:
+        disposable.collection_time = time.fromisoformat(req.collection_time) if req.collection_time else None
+    except ValueError as exc:
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, "collection_time must use HH:MM format") from exc
     if not is_new and user.role != UserRole.admin:
         disposable.approved = False  # editing a request re-opens it for admin review
 

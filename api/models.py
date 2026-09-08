@@ -1,5 +1,5 @@
 import enum
-from datetime import date, datetime
+from datetime import date, datetime, time
 
 from sqlalchemy import (
     BigInteger,
@@ -9,7 +9,9 @@ from sqlalchemy import (
     Enum,
     ForeignKey,
     Integer,
+    LargeBinary,
     String,
+    Time,
     Text,
     func,
 )
@@ -34,6 +36,13 @@ class ProposalStatus(str, enum.Enum):
     in_review = "in_review"
     submitted = "submitted"
     finished = "finished"
+
+
+class ProposalCategory(str, enum.Enum):
+    event = "event"
+    initiative = "initiative"
+    decor = "decor"
+    pantry_cleaning = "pantry_cleaning"
 
 
 class ReminderTargetType(str, enum.Enum):
@@ -99,8 +108,15 @@ class Proposal(Base):
     committee_id: Mapped[int] = mapped_column(ForeignKey("committees.id"), nullable=False)
     submitted_by: Mapped[int] = mapped_column(ForeignKey("users.id"), nullable=False)
     title: Mapped[str] = mapped_column(String(255), nullable=False)
+    category: Mapped[ProposalCategory] = mapped_column(
+        Enum(ProposalCategory, native_enum=False), default=ProposalCategory.pantry_cleaning, nullable=False
+    )
     description: Mapped[str | None] = mapped_column(Text)
     doc_link: Mapped[str | None] = mapped_column(Text)
+    blast_message: Mapped[str | None] = mapped_column(Text)
+    poster_filename: Mapped[str | None] = mapped_column(String(255))
+    poster_content_type: Mapped[str | None] = mapped_column(String(100))
+    poster_data: Mapped[bytes | None] = mapped_column(LargeBinary)
     status: Mapped[ProposalStatus] = mapped_column(
         Enum(ProposalStatus, native_enum=False), default=ProposalStatus.needs_action
     )
@@ -142,6 +158,7 @@ class DisposableRequest(Base):
     forks: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
     spoons: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
     collection_date: Mapped[date] = mapped_column(Date, nullable=False)
+    collection_time: Mapped[time | None] = mapped_column(Time)
     approved: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
 

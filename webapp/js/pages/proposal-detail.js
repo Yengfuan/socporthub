@@ -30,6 +30,8 @@ function formatTimestamp(iso) {
 }
 
 export function renderNewProposal(root, navigate) {
+  const draftKey = "social-port-hub-proposal-draft";
+  const saved = JSON.parse(localStorage.getItem(draftKey) || "null") || {};
   root.innerHTML = `
     <div class="page-header">
       <span class="back" data-nav="home">&larr; Back</span>
@@ -38,45 +40,100 @@ export function renderNewProposal(root, navigate) {
     <form id="proposal-form">
       <div class="field">
         <label for="title">Title</label>
-        <input type="text" id="title" name="title" required />
+        <input type="text" id="title" name="title" required value="${escapeHtml(saved.title)}" />
+      </div>
+      <div class="field">
+        <label for="category">Category</label>
+        <select id="category" name="category" required>
+          <option value="event" ${saved.category === "event" ? "selected" : ""}>Event</option>
+          <option value="initiative" ${saved.category === "initiative" ? "selected" : ""}>Initiative</option>
+          <option value="decor" ${saved.category === "decor" ? "selected" : ""}>Decor</option>
+          <option value="pantry_cleaning" ${!saved.category || saved.category === "pantry_cleaning" ? "selected" : ""}>Pantry Cleaning</option>
+        </select>
       </div>
       <div class="field">
         <label for="description">Description</label>
-        <textarea id="description" name="description"></textarea>
+        <textarea id="description" name="description">${escapeHtml(saved.description)}</textarea>
       </div>
       <div class="field">
         <label for="event_date">Event date</label>
-        <input type="date" id="event_date" name="event_date" />
+        <input type="date" id="event_date" name="event_date" value="${escapeHtml(saved.event_date)}" />
       </div>
       <div class="field">
-        <label for="doc_link">Google Doc / link (optional)</label>
-        <input type="url" id="doc_link" name="doc_link" placeholder="https://" />
+        <label for="doc_link">Link / PDF URL <span id="doc-required-hint"></span></label>
+        <input type="url" id="doc_link" name="doc_link" placeholder="https://" value="${escapeHtml(saved.doc_link)}" />
+      </div>
+      <div class="field" id="poster-field">
+        <label for="poster">Poster <span class="field-hint">Required for Event and Initiative</span></label>
+        <input type="file" id="poster" name="poster" accept="image/jpeg,image/png,image/webp,application/pdf" />
+      </div>
+      <div class="field">
+        <label for="blast_message">Blast message (optional)</label>
+        <textarea id="blast_message" name="blast_message" placeholder="Message to accompany the event announcement">${escapeHtml(saved.blast_message)}</textarea>
       </div>
       <div id="form-error"></div>
-      <button type="submit" class="btn">Submit Proposal</button>
+      <div class="btn-row"><button type="button" class="btn btn-secondary" id="save-draft">Save Draft</button><button type="submit" class="btn">Submit for Review</button></div>
     </form>
   `;
+
+  const form = root.querySelector("#proposal-form");
+  const category = root.querySelector("#category");
+  const posterField = root.querySelector("#poster-field");
+  const docLink = root.querySelector("#doc_link");
+  const updateRequirements = () => {
+    const needsPoster = ["event", "initiative"].includes(category.value);
+    const needsDoc = category.value === "decor";
+    posterField.style.display = needsPoster ? "block" : "none";
+    root.querySelector("#poster").required = false; // upload happens after proposal creation
+    docLink.required = needsDoc;
+    root.querySelector("#doc-required-hint").textContent = needsDoc ? "(required for Decor)" : "(optional)";
+  };
+  category.addEventListener("change", updateRequirements);
+  updateRequirements();
+
+  root.querySelector("#save-draft").addEventListener("click", () => {
+    localStorage.setItem(draftKey, JSON.stringify(Object.fromEntries(new FormData(form).entries())));
+    root.querySelector("#form-error").innerHTML = `<p>Draft saved on this device.</p>`;
+  });
 
   root.querySelector("#proposal-form").addEventListener("submit", async (e) => {
     e.preventDefault();
     const errorEl = root.querySelector("#form-error");
     errorEl.innerHTML = "";
-    const btn = e.target.querySelector("button");
+    const btn = e.target.querySelector("button[type=submit]");
     btn.disabled = true;
     btn.textContent = "Submitting…";
 
     try {
+      const categoryValue = e.target.category.value;
+      const poster = e.target.poster.files[0];
+      if (["event", "initiative"].includes(categoryValue) && !poster) {
+        throw new Error("Please select a poster for this category.");
+      }
+      if (categoryValue === "decor" && !e.target.doc_link.value.trim()) {
+        throw new Error("Please provide a link or PDF URL for Decor.");
+      }
       const proposal = await api.post("/api/proposals", {
         title: e.target.title.value.trim(),
+        category: categoryValue,
         description: e.target.description.value.trim() || null,
         event_date: e.target.event_date.value || null,
         doc_link: e.target.doc_link.value.trim() || null,
+        blast_message: e.target.blast_message.value.trim() || null,
       });
+      if (poster) {
+        const formData = new FormData();
+        formData.append("poster", poster);
+        await api.upload(`/api/proposals/${proposal.id}/poster`, formData);
+      } else if (["event", "initiative"].includes(e.target.category.value)) {
+        throw new Error("Please select a poster for this category.");
+      }
+      localStorage.removeItem(draftKey);
       navigate(`proposal/${proposal.id}`);
     } catch (err) {
       errorEl.innerHTML = `<div class="error-banner">${err.message}</div>`;
       btn.disabled = false;
-      btn.textContent = "Submit Proposal";
+      btn.textContent = "Submit for Review";
     }
   });
 }
@@ -103,6 +160,11 @@ export async function renderProposalDetail(root, user, proposalId, navigate) {
 
     <h1>${escapeHtml(proposal.title)}</h1>
     <p>${escapeHtml(proposal.committee_name)} · Submitted by ${escapeHtml(proposal.submitter_name || "")}</p>
+
+    <div class="card"><h3>Category</h3><p style="color:var(--text)">${escapeHtml(proposal.category.replaceAll("_", " "))}</p>
+      ${proposal.blast_message ? `<h3>Blast message</h3><p style="color:var(--text); white-space:pre-wrap;">${escapeHtml(proposal.blast_message)}</p>` : ""}
+      ${proposal.poster_filename ? `<p><a href="/api/proposals/${proposal.id}/poster" target="_blank" rel="noopener">View poster</a></p>` : ""}
+    </div>
 
     <div class="card">
       <h3>Description</h3>
@@ -257,6 +319,15 @@ function renderEditForm(slot, proposal, navigate) {
   slot.innerHTML = `
     <form id="edit-form" style="margin-top:16px">
       <div class="field">
+        <label for="e-category">Category</label>
+        <select id="e-category">
+          <option value="event" ${proposal.category === "event" ? "selected" : ""}>Event</option>
+          <option value="initiative" ${proposal.category === "initiative" ? "selected" : ""}>Initiative</option>
+          <option value="decor" ${proposal.category === "decor" ? "selected" : ""}>Decor</option>
+          <option value="pantry_cleaning" ${proposal.category === "pantry_cleaning" ? "selected" : ""}>Pantry Cleaning</option>
+        </select>
+      </div>
+      <div class="field">
         <label for="e-title">Title</label>
         <input type="text" id="e-title" value="${escapeHtml(proposal.title)}" required />
       </div>
@@ -272,6 +343,10 @@ function renderEditForm(slot, proposal, navigate) {
         <label for="e-doc_link">Google Doc / link</label>
         <input type="url" id="e-doc_link" value="${escapeHtml(proposal.doc_link)}" />
       </div>
+      <div class="field">
+        <label for="e-blast_message">Blast message</label>
+        <textarea id="e-blast_message">${escapeHtml(proposal.blast_message)}</textarea>
+      </div>
       <div id="edit-error"></div>
       <button type="submit" class="btn">Save Changes</button>
     </form>
@@ -282,10 +357,12 @@ function renderEditForm(slot, proposal, navigate) {
     const errorEl = slot.querySelector("#edit-error");
     try {
       await api.patch(`/api/proposals/${proposal.id}`, {
+        category: slot.querySelector("#e-category").value,
         title: slot.querySelector("#e-title").value.trim(),
         description: slot.querySelector("#e-description").value.trim() || null,
         event_date: slot.querySelector("#e-event_date").value || null,
         doc_link: slot.querySelector("#e-doc_link").value.trim() || null,
+        blast_message: slot.querySelector("#e-blast_message").value.trim() || null,
       });
       navigate(`proposal/${proposal.id}`);
     } catch (err) {
