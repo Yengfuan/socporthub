@@ -48,7 +48,7 @@ body {
   max-width: 480px;
   margin: 0 auto;
   min-height: 100vh;
-  padding: var(--space-4) var(--space-4) 80px;
+  padding: var(--space-4) var(--space-4) 140px;
 }
 
 h1, h2, h3 {
@@ -248,7 +248,7 @@ a {
 
 .fab {
   position: fixed;
-  bottom: 24px;
+  bottom: 76px;
   left: 50%;
   transform: translateX(-50%);
   width: 100%;
@@ -302,6 +302,108 @@ a {
   padding: var(--space-5);
   color: var(--text-muted);
   font-size: 14px;
+}
+
+/* --- Calendar --- */
+
+.cal-grid {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  gap: 2px;
+  margin-bottom: 4px;
+}
+
+.cal-grid-header {
+  margin-bottom: var(--space-2);
+}
+
+.cal-headcell {
+  text-align: center;
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--text-muted);
+  padding: var(--space-1) 0;
+}
+
+.cal-cell {
+  aspect-ratio: 1;
+  border-radius: 8px;
+  background: var(--surface);
+  padding: 4px;
+  cursor: pointer;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+}
+
+.cal-cell-outside {
+  opacity: 0.35;
+}
+
+.cal-cell-today .cal-daynum {
+  background: var(--accent);
+  color: var(--accent-text);
+  border-radius: 999px;
+}
+
+.cal-cell-selected {
+  outline: 2px solid var(--accent);
+}
+
+.cal-daynum {
+  font-size: 12px;
+  font-weight: 600;
+  width: 20px;
+  height: 20px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.cal-dots {
+  display: flex;
+  gap: 2px;
+  flex-wrap: wrap;
+  justify-content: center;
+}
+
+.cal-dot {
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+}
+
+.cal-dot-proposal {
+  background: var(--text);
+}
+
+/* --- Bottom nav --- */
+
+.bottom-nav {
+  position: fixed;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  display: flex;
+  background: var(--surface);
+  border-top: 1px solid var(--border);
+  padding-bottom: env(safe-area-inset-bottom);
+  z-index: 10;
+}
+
+.bottom-nav a {
+  flex: 1;
+  text-align: center;
+  padding: var(--space-3) 0;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-muted);
+  text-decoration: none;
+}
+
+.bottom-nav a.active {
+  color: var(--accent);
 }
 
 .error-banner {

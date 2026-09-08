@@ -3,10 +3,12 @@ from datetime import date, datetime
 
 from sqlalchemy import (
     BigInteger,
+    Boolean,
     Date,
     DateTime,
     Enum,
     ForeignKey,
+    Integer,
     String,
     Text,
     func,
@@ -52,6 +54,7 @@ class Committee(Base):
 
     memberships: Mapped[list["UserCommittee"]] = relationship(back_populates="committee")
     proposals: Mapped[list["Proposal"]] = relationship(back_populates="committee")
+    calendar_events: Mapped[list["CalendarEvent"]] = relationship(back_populates="committee")
 
 
 class User(Base):
@@ -103,3 +106,53 @@ class Proposal(Base):
 
     committee: Mapped["Committee"] = relationship(back_populates="proposals")
     submitter: Mapped["User"] = relationship(back_populates="proposals")
+    comments: Mapped[list["ProposalComment"]] = relationship(
+        back_populates="proposal", order_by="ProposalComment.created_at"
+    )
+    disposable_request: Mapped["DisposableRequest | None"] = relationship(back_populates="proposal")
+
+
+class ProposalComment(Base):
+    __tablename__ = "proposal_comments"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    proposal_id: Mapped[int] = mapped_column(ForeignKey("proposals.id"), nullable=False)
+    author_id: Mapped[int] = mapped_column(ForeignKey("users.id"), nullable=False)
+    body: Mapped[str] = mapped_column(Text, nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+    proposal: Mapped["Proposal"] = relationship(back_populates="comments")
+    author: Mapped["User"] = relationship()
+
+
+class DisposableRequest(Base):
+    __tablename__ = "disposable_requests"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    proposal_id: Mapped[int] = mapped_column(ForeignKey("proposals.id"), unique=True, nullable=False)
+    requested_by: Mapped[int] = mapped_column(ForeignKey("users.id"), nullable=False)
+    plates: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+    cups: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+    forks: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+    spoons: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+    collection_date: Mapped[date] = mapped_column(Date, nullable=False)
+    approved: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+    proposal: Mapped["Proposal"] = relationship(back_populates="disposable_request")
+    requester: Mapped["User"] = relationship()
+
+
+class CalendarEvent(Base):
+    __tablename__ = "calendar_events"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    committee_id: Mapped[int] = mapped_column(ForeignKey("committees.id"), nullable=False)
+    created_by: Mapped[int] = mapped_column(ForeignKey("users.id"), nullable=False)
+    title: Mapped[str] = mapped_column(String(255), nullable=False)
+    description: Mapped[str | None] = mapped_column(Text)
+    event_date: Mapped[date] = mapped_column(Date, nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+    committee: Mapped["Committee"] = relationship(back_populates="calendar_events")
+    creator: Mapped["User"] = relationship()

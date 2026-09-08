@@ -63,6 +63,9 @@ class ProposalUpdateRequest(BaseModel):
     doc_link: str | None = None
     event_date: date | None = None
     status: ProposalStatus | None = None
+    # Optional note attached to a status change (e.g. why it was sent back to
+    # needs_action) — stored as a comment and included in the Telegram notification.
+    comment: str | None = None
 
 
 class ProposalOut(BaseModel):
@@ -87,3 +90,78 @@ class ProposalStatusCounts(BaseModel):
     in_review: int = 0
     submitted: int = 0
     finished: int = 0
+
+
+# --- Proposal comments ---
+
+
+class ProposalCommentCreate(BaseModel):
+    body: str
+
+
+class ProposalCommentOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: int
+    proposal_id: int
+    author_id: int
+    author_name: str | None = None
+    body: str
+    created_at: datetime
+
+
+# --- Disposables ---
+
+
+class DisposableRequestUpsert(BaseModel):
+    plates: int = 0
+    cups: int = 0
+    forks: int = 0
+    spoons: int = 0
+    collection_date: date
+
+
+class DisposableRequestUpdate(BaseModel):
+    approved: bool
+
+
+class DisposableRequestOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: int
+    proposal_id: int
+    proposal_title: str
+    committee_name: str
+    requested_by: int
+    requester_name: str | None
+    plates: int
+    cups: int
+    forks: int
+    spoons: int
+    collection_date: date
+    approved: bool
+    created_at: datetime
+
+
+# --- Calendar ---
+
+
+class CalendarEventCreate(BaseModel):
+    title: str
+    description: str | None = None
+    date: date
+    committee_id: int | None = None  # required for admins, who have no committee of their own
+
+
+class CalendarEventOut(BaseModel):
+    id: int
+    title: str
+    description: str | None
+    date: str
+    committee_id: int
+    committee_name: str
+    committee_color: str
+
+
+class CalendarFeedUrlOut(BaseModel):
+    url: str

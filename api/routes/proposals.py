@@ -6,17 +6,23 @@ from api.database import get_db
 from api.models import (
     PROPOSAL_STATUS_TRANSITIONS,
     Proposal,
+    ProposalComment,
     ProposalStatus,
     User,
     UserRole,
 )
 from api.schemas import (
+    ProposalCommentCreate,
+    ProposalCommentOut,
     ProposalCreateRequest,
     ProposalOut,
     ProposalStatusCounts,
     ProposalUpdateRequest,
 )
-from bot.notifications import notify_admins_new_proposal, notify_user_status_change
+from bot.notifications import (
+    notify_admins_new_proposal,
+    notify_user_status_change,
+)
 
 router = APIRouter(prefix="/api/proposals", tags=["proposals"])
 
@@ -108,7 +114,7 @@ async def create_proposal(
     return _to_out(proposal)
 
 
-def _get_visible_proposal(db: Session, user: User, proposal_id: int) -> Proposal:
+def get_visible_proposal(db: Session, user: User, proposal_id: int) -> Proposal:
     proposal = _visible_query(db, user).filter(Proposal.id == proposal_id).first()
     if not proposal:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "Proposal not found")
@@ -121,7 +127,7 @@ def get_proposal(
     db: Session = Depends(get_db),
     user: User = Depends(get_current_user),
 ) -> ProposalOut:
-    return _to_out(_get_visible_proposal(db, user, proposal_id))
+    return _to_out(get_visible_proposal(db, user, proposal_id))
 
 
 @router.patch("/{proposal_id}", response_model=ProposalOut)
@@ -131,7 +137,7 @@ async def update_proposal(
     db: Session = Depends(get_db),
     user: User = Depends(get_current_user),
 ) -> ProposalOut:
-    proposal = _get_visible_proposal(db, user, proposal_id)
+    proposal = get_visible_proposal(db, user, proposal_id)
     is_admin = user.role == UserRole.admin
     is_owner = proposal.submitted_by == user.id
 
@@ -158,10 +164,46 @@ async def update_proposal(
             if value is not None:
                 setattr(proposal, field, value)
 
+    if req.comment:
+        db.add(ProposalComment(proposal_id=proposal.id, author_id=user.id, body=req.comment))
+
     db.commit()
     db.refresh(proposal)
 
     if req.status is not None:
-        await notify_user_status_change(proposal.submitter.telegram_id, proposal.title, proposal.status.value)
+        await notify_user_status_change(
+            proposal.submitter.telegram_id, proposal.title, proposal.status.value, req.comment
+        )
 
     return _to_out(proposal)
+
+
+def _comment_to_out(c: ProposalComment) -> ProposalCommentOut:
+    out = ProposalCommentOut.model_validate(c)
+    out.author_name = c.author.display_name or c.author.email
+    return out
+
+
+@router.get("/{proposal_id}/comments", response_model=list[ProposalCommentOut])
+def list_comments(
+    proposal_id: int,
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
+) -> list[ProposalCommentOut]:
+    proposal = get_visible_proposal(db, user, proposal_id)
+    return [_comment_to_out(c) for c in proposal.comments]
+
+
+@router.post("/{proposal_id}/comments", response_model=ProposalCommentOut, status_code=status.HTTP_201_CREATED)
+def add_comment(
+    proposal_id: int,
+    req: ProposalCommentCreate,
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
+) -> ProposalCommentOut:
+    proposal = get_visible_proposal(db, user, proposal_id)
+    comment = ProposalComment(proposal_id=proposal.id, author_id=user.id, body=req.body)
+    db.add(comment)
+    db.commit()
+    db.refresh(comment)
+    return _comment_to_out(comment)

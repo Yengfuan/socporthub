@@ -20,6 +20,7 @@ export async function renderAdminDashboard(root, tab = "proposals") {
     <h1>Admin Dashboard</h1>
     <div class="chip-row" id="section-tabs">
       <div class="chip ${tab === "proposals" ? "active" : ""}" data-tab="proposals">Proposals</div>
+      <div class="chip ${tab === "disposables" ? "active" : ""}" data-tab="disposables">Disposables</div>
       <div class="chip ${tab === "users" ? "active" : ""}" data-tab="users">Users</div>
     </div>
     <div id="section-content"><div class="loading">Loading…</div></div>
@@ -32,9 +33,74 @@ export async function renderAdminDashboard(root, tab = "proposals") {
   const content = root.querySelector("#section-content");
   if (tab === "users") {
     await renderUsersSection(content);
+  } else if (tab === "disposables") {
+    await renderDisposablesSection(content);
   } else {
     await renderProposalsSection(content);
   }
+}
+
+async function renderDisposablesSection(content) {
+  const requests = await api.get("/api/disposables");
+  const todayStr = new Date().toISOString().slice(0, 10);
+
+  const byDate = new Map();
+  for (const r of requests) {
+    if (!byDate.has(r.collection_date)) byDate.set(r.collection_date, []);
+    byDate.get(r.collection_date).push(r);
+  }
+  const dates = Array.from(byDate.keys()).sort();
+
+  if (!dates.length) {
+    content.innerHTML = `<div class="empty-state"><div class="icon">🍽️</div><p>No disposable requests yet.</p></div>`;
+    return;
+  }
+
+  content.innerHTML = dates
+    .map((d) => {
+      const items = byDate.get(d);
+      const totals = items.reduce(
+        (acc, r) => ({
+          plates: acc.plates + r.plates,
+          cups: acc.cups + r.cups,
+          forks: acc.forks + r.forks,
+          spoons: acc.spoons + r.spoons,
+        }),
+        { plates: 0, cups: 0, forks: 0, spoons: 0 }
+      );
+      const isToday = d === todayStr;
+      return `
+        <div class="card" style="${isToday ? "border: 2px solid var(--accent);" : ""}">
+          <h3>${d}${isToday ? " · Today" : ""}</h3>
+          <p style="color:var(--text)">Totals — Plates: ${totals.plates} · Cups: ${totals.cups} · Forks: ${totals.forks} · Spoons: ${totals.spoons}</p>
+          ${items
+            .map(
+              (r) => `
+            <div style="display:flex; justify-content:space-between; align-items:center; padding:6px 0; border-top:1px solid var(--border);">
+              <div>
+                <div style="font-size:13px; font-weight:600;">${escapeHtml(r.proposal_title)}</div>
+                <div style="font-size:12px; color:var(--text-muted)">${escapeHtml(r.committee_name)} · ${escapeHtml(r.requester_name || "")}</div>
+              </div>
+              ${
+                r.approved
+                  ? `<span class="badge badge-approved">Approved</span>`
+                  : `<button class="btn" style="width:auto; padding:6px 14px;" data-approve-disposable="${r.id}">Approve</button>`
+              }
+            </div>`
+            )
+            .join("")}
+        </div>
+      `;
+    })
+    .join("");
+
+  content.querySelectorAll("[data-approve-disposable]").forEach((btn) => {
+    btn.addEventListener("click", async () => {
+      btn.disabled = true;
+      await api.patch(`/api/disposables/${btn.dataset.approveDisposable}`, { approved: true });
+      renderDisposablesSection(content);
+    });
+  });
 }
 
 async function renderProposalsSection(content, committeeId = null) {

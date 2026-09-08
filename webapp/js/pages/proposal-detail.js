@@ -1,5 +1,6 @@
 import { api } from "../api.js";
 import { statusBadge } from "../components/status-badge.js";
+import { renderDisposableSection } from "../components/disposable-form.js";
 
 const NEXT_STATUS = {
   needs_action: "in_review",
@@ -17,6 +18,15 @@ function escapeHtml(s) {
   const div = document.createElement("div");
   div.textContent = s ?? "";
   return div.innerHTML;
+}
+
+function formatTimestamp(iso) {
+  return new Date(iso).toLocaleString(undefined, {
+    month: "short",
+    day: "numeric",
+    hour: "numeric",
+    minute: "2-digit",
+  });
 }
 
 export function renderNewProposal(root, navigate) {
@@ -73,7 +83,10 @@ export function renderNewProposal(root, navigate) {
 
 export async function renderProposalDetail(root, user, proposalId, navigate) {
   root.innerHTML = `<div class="loading">Loading…</div>`;
-  const proposal = await api.get(`/api/proposals/${proposalId}`);
+  const [proposal, comments] = await Promise.all([
+    api.get(`/api/proposals/${proposalId}`),
+    api.get(`/api/proposals/${proposalId}/comments`),
+  ]);
 
   const isAdmin = user.role === "admin";
   const isOwner = proposal.submitted_by === user.id;
@@ -108,8 +121,18 @@ export async function renderProposalDetail(root, user, proposalId, navigate) {
       }</p>
     </div>
 
+    <div id="disposable-slot"></div>
+
     ${canEdit ? `<button class="btn btn-secondary" id="edit-btn">Edit Proposal</button>` : ""}
 
+    ${
+      isAdmin && (nextStatus || proposal.status === "in_review")
+        ? `<div class="field" style="margin-top:16px">
+             <label for="status-comment">Note to submitter (optional)</label>
+             <textarea id="status-comment" placeholder="Explain what needs to change, or add context…"></textarea>
+           </div>`
+        : ""
+    }
     ${
       isAdmin && nextStatus
         ? `<button class="btn" id="advance-btn">${NEXT_STATUS_LABEL[proposal.status]}</button>`
@@ -123,7 +146,35 @@ export async function renderProposalDetail(root, user, proposalId, navigate) {
 
     <div id="detail-error"></div>
     <div id="edit-form-slot"></div>
+
+    <h2 style="margin-top:24px">Comments</h2>
+    <div id="comments-list">
+      ${
+        comments.length
+          ? comments
+              .map(
+                (c) => `
+        <div class="card">
+          <div style="display:flex; justify-content:space-between; font-size:12px; color:var(--text-muted); margin-bottom:4px;">
+            <span>${escapeHtml(c.author_name || "")}</span>
+            <span>${formatTimestamp(c.created_at)}</span>
+          </div>
+          <div style="white-space:pre-wrap;">${escapeHtml(c.body)}</div>
+        </div>`
+              )
+              .join("")
+          : `<p>No comments yet.</p>`
+      }
+    </div>
+    <form id="comment-form">
+      <div class="field">
+        <textarea id="comment-body" placeholder="Add a comment…" required></textarea>
+      </div>
+      <button type="submit" class="btn btn-secondary">Post Comment</button>
+    </form>
   `;
+
+  renderDisposableSection(root.querySelector("#disposable-slot"), user, proposal);
 
   root.querySelector("#advance-btn")?.addEventListener("click", async (e) => {
     await changeStatus(e.target, nextStatus);
@@ -134,12 +185,20 @@ export async function renderProposalDetail(root, user, proposalId, navigate) {
   root.querySelector("#edit-btn")?.addEventListener("click", () => {
     renderEditForm(root.querySelector("#edit-form-slot"), proposal, navigate);
   });
+  root.querySelector("#comment-form").addEventListener("submit", async (e) => {
+    e.preventDefault();
+    const body = root.querySelector("#comment-body").value.trim();
+    if (!body) return;
+    await api.post(`/api/proposals/${proposal.id}/comments`, { body });
+    renderProposalDetail(root, user, proposalId, navigate);
+  });
 
-  async function changeStatus(btn, status) {
+  async function changeStatus(btn, newStatus) {
     btn.disabled = true;
     const errorEl = root.querySelector("#detail-error");
+    const comment = root.querySelector("#status-comment")?.value.trim() || null;
     try {
-      await api.patch(`/api/proposals/${proposal.id}`, { status });
+      await api.patch(`/api/proposals/${proposal.id}`, { status: newStatus, comment });
       renderProposalDetail(root, user, proposalId, navigate);
     } catch (err) {
       errorEl.innerHTML = `<div class="error-banner">${err.message}</div>`;

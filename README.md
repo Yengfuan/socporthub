@@ -3,9 +3,15 @@
 Telegram Bot + WebApp for consolidating Raffles Hall committee management under the
 Social Director. Full spec: [`SOCIAL-PORT-HUB.md`](./SOCIAL-PORT-HUB.md).
 
-**Current status:** Phases 1–2 (Foundation + Core Proposals) — registration/approval,
-committees, and the proposal lifecycle. Calendar, disposables, email, and reminders are
-not built yet.
+**Current status:** Phases 1–3 (Foundation + Core Proposals + Calendar & Disposables) —
+registration/approval, committees, the proposal lifecycle with comments, an in-app
+calendar with an iCalendar subscription feed, and hall disposables requests/approval.
+Email sending and reminders (Phase 4) are not built yet.
+
+The calendar deviates from the original spec: instead of the Google Calendar API (which
+requires a GCP billing account), events live in our own database and are exposed via a
+free, open **iCalendar (.ics) feed** that anyone can subscribe to from Google/Apple/
+Outlook calendar apps — see "Calendar" below.
 
 ## Local development
 
@@ -45,6 +51,25 @@ moment `TELEGRAM_BOT_TOKEN` is set, so it can't leak into a real deploy.
 5. Add your own numeric Telegram user ID to `ADMIN_TELEGRAM_IDS` (comma-separated) so you
    land in the admin dashboard instead of the registration flow.
 
+## Calendar
+
+Events live entirely in our own Postgres table (`calendar_events`) — created, listed,
+and filtered through the webapp only. There's no external calendar API, no GCP project,
+and no cost.
+
+For people who want hall events to show up in their own phone's calendar app, the app
+also publishes a public **iCalendar feed** at `GET /api/calendar/feed.ics`, which Google
+Calendar, Apple Calendar, and Outlook can all "subscribe to" natively (Settings → Add
+calendar → From URL). Subscribed calendars are read-only and typically refresh every few
+hours, not instantly — fine for a hall events calendar. The webapp's Calendar tab shows
+a "Subscribe from your phone's calendar app" link with the URL, so nobody needs to know
+this endpoint exists.
+
+Set `CALENDAR_FEED_TOKEN` (any random string) to require it as a `?token=` query param
+on that URL — this keeps the feed from being trivially guessable by outsiders, similar
+to how Google Calendar's own "secret address in iCal format" works. Leave it blank to
+serve the feed with no token (fine for local dev).
+
 ## Deployment (Railway)
 
 1. New Railway project → add a PostgreSQL plugin → copy its `DATABASE_URL`.
@@ -56,7 +81,7 @@ moment `TELEGRAM_BOT_TOKEN` is set, so it can't leak into a real deploy.
 ## Project layout
 
 ```
-api/       FastAPI app, models, routes, services (Telegram send helper)
+api/       FastAPI app, models, routes, services (Telegram + Google Calendar)
 bot/       Telegram webhook update handling (/start, /help) + outbound notifications
 webapp/    Vanilla JS SPA (Telegram WebApp UI)
 migrations/  Alembic

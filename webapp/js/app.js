@@ -3,13 +3,17 @@ import { renderRegister, renderPendingOrRejected } from "./pages/register.js";
 import { renderHome } from "./pages/home.js";
 import { renderNewProposal, renderProposalDetail } from "./pages/proposal-detail.js";
 import { renderAdminDashboard } from "./pages/admin-dashboard.js";
+import { renderCalendar } from "./pages/calendar.js";
+import { renderBottomNav } from "./components/nav.js";
 
 const tg = window.Telegram?.WebApp;
 tg?.ready();
 tg?.expand();
 
-const root = document.getElementById("app");
+const app = document.getElementById("app");
 let currentUser = null;
+
+const TOP_LEVEL_ROUTES = new Set(["home", "admin", "calendar"]);
 
 function navigate(route) {
   window.location.hash = route;
@@ -19,15 +23,30 @@ function currentRoute() {
   return window.location.hash.replace(/^#\/?/, "") || "home";
 }
 
+function setNav(activeRoute) {
+  let nav = app.querySelector(".bottom-nav");
+  if (!TOP_LEVEL_ROUTES.has(activeRoute)) {
+    nav?.remove();
+    return;
+  }
+  const navRoute = activeRoute === "admin" ? "home" : activeRoute;
+  const html = renderBottomNav(navRoute);
+  if (nav) {
+    nav.outerHTML = html;
+  } else {
+    app.insertAdjacentHTML("beforeend", html);
+  }
+}
+
 async function render() {
   const route = currentRoute();
 
   if (!currentUser) {
-    root.innerHTML = `<div class="loading">Loading…</div>`;
+    app.innerHTML = `<div class="loading">Loading…</div>`;
     try {
       const { registered, user } = await api.post("/api/auth/validate");
       if (!registered) {
-        renderRegister(root, (user) => {
+        renderRegister(app, (user) => {
           currentUser = user;
           render();
         });
@@ -35,36 +54,44 @@ async function render() {
       }
       currentUser = user;
     } catch (err) {
-      root.innerHTML = `<div class="error-banner">Could not verify your Telegram session: ${err.message}</div>`;
+      app.innerHTML = `<div class="error-banner">Could not verify your Telegram session: ${err.message}</div>`;
       return;
     }
   }
 
   if (currentUser.status !== "approved") {
-    root.innerHTML = renderPendingOrRejected(currentUser);
+    app.innerHTML = renderPendingOrRejected(currentUser);
     return;
   }
+
+  app.innerHTML = `<div id="page-content"></div>`;
+  const page = app.querySelector("#page-content");
 
   try {
     if (route === "home") {
       if (currentUser.role === "admin") {
-        await renderAdminDashboard(root);
+        await renderAdminDashboard(page);
       } else {
-        await renderHome(root, currentUser);
+        await renderHome(page, currentUser);
       }
     } else if (route === "admin") {
-      await renderAdminDashboard(root);
+      await renderAdminDashboard(page);
+    } else if (route === "calendar") {
+      await renderCalendar(page, currentUser);
     } else if (route === "proposal/new") {
-      renderNewProposal(root, navigate);
+      renderNewProposal(page, navigate);
     } else if (route.startsWith("proposal/")) {
       const id = route.split("/")[1];
-      await renderProposalDetail(root, currentUser, id, navigate);
+      await renderProposalDetail(page, currentUser, id, navigate);
     } else {
       navigate("home");
+      return;
     }
   } catch (err) {
-    root.innerHTML = `<div class="error-banner">${err.message}</div>`;
+    page.innerHTML = `<div class="error-banner">${err.message}</div>`;
   }
+
+  setNav(route);
 }
 
 // Delegate clicks on any [data-nav] element to the hash router.

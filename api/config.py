@@ -16,6 +16,10 @@ class Settings(BaseSettings):
     secret_key: str = "dev-secret-key"
     environment: str = "development"
 
+    # Random string appended to the public .ics subscription feed URL so it can't be
+    # trivially guessed. Leave blank to serve the feed without a token (fine for local dev).
+    calendar_feed_token: str = ""
+
     @property
     def admin_telegram_id_set(self) -> set[int]:
         return {
