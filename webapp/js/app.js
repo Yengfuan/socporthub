@@ -25,7 +25,7 @@ async function render() {
   if (!currentUser) {
     root.innerHTML = `<div class="loading">Loading…</div>`;
     try {
-      const { registered, user } = await api.get("/api/auth/validate");
+      const { registered, user } = await api.post("/api/auth/validate");
       if (!registered) {
         renderRegister(root, (user) => {
           currentUser = user;
