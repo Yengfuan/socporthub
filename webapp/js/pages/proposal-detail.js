@@ -90,7 +90,9 @@ export async function renderProposalDetail(root, user, proposalId, navigate) {
 
   const isAdmin = user.role === "admin";
   const isOwner = proposal.submitted_by === user.id;
-  const canEdit = isOwner && proposal.status === "needs_action";
+  // Admins can edit a proposal's fields (including clearing a stray event_date) at any
+  // status; a regular owner can only edit their own while it's still needs_action.
+  const canEdit = isAdmin || (isOwner && proposal.status === "needs_action");
   const nextStatus = NEXT_STATUS[proposal.status];
 
   root.innerHTML = `
@@ -147,6 +149,8 @@ export async function renderProposalDetail(root, user, proposalId, navigate) {
     <div id="detail-error"></div>
     <div id="edit-form-slot"></div>
 
+    ${!isAdmin ? `<button class="btn btn-secondary" id="remind-btn" style="margin-top:12px">Remind Admin</button>` : ""}
+
     <h2 style="margin-top:24px">Comments</h2>
     <div id="comments-list">
       ${
@@ -175,6 +179,7 @@ export async function renderProposalDetail(root, user, proposalId, navigate) {
   `;
 
   renderDisposableSection(root.querySelector("#disposable-slot"), user, proposal);
+  if (proposal.status === "in_review") renderEmailSection(root, user, proposal, navigate);
 
   root.querySelector("#advance-btn")?.addEventListener("click", async (e) => {
     await changeStatus(e.target, nextStatus);
@@ -192,6 +197,18 @@ export async function renderProposalDetail(root, user, proposalId, navigate) {
     await api.post(`/api/proposals/${proposal.id}/comments`, { body });
     renderProposalDetail(root, user, proposalId, navigate);
   });
+  root.querySelector("#remind-btn")?.addEventListener("click", async (e) => {
+    const message = window.prompt("What should the admin review?");
+    if (!message?.trim()) return;
+    e.target.disabled = true;
+    try {
+      await api.post("/api/reminders", { message: message.trim(), target_type: "proposal", target_id: proposal.id });
+      e.target.textContent = "Reminder sent";
+    } catch (err) {
+      root.querySelector("#detail-error").innerHTML = `<div class="error-banner">${escapeHtml(err.message)}</div>`;
+      e.target.disabled = false;
+    }
+  });
 
   async function changeStatus(btn, newStatus) {
     btn.disabled = true;
@@ -204,6 +221,35 @@ export async function renderProposalDetail(root, user, proposalId, navigate) {
       errorEl.innerHTML = `<div class="error-banner">${err.message}</div>`;
       btn.disabled = false;
     }
+  }
+}
+
+async function renderEmailSection(root, user, proposal, navigate) {
+  const slot = document.createElement("div");
+  slot.id = "email-slot";
+  const disposableSlot = root.querySelector("#disposable-slot");
+  disposableSlot.after(slot);
+  if (proposal.status !== "in_review") return;
+  try {
+    const draft = await api.get(`/api/email/preview/${proposal.id}`);
+    slot.innerHTML = `<div class="card"><h3>Confirmation Email</h3>
+      <div class="field"><label for="email-recipient">To</label><input id="email-recipient" value="${escapeHtml(draft.recipient)}" disabled /></div>
+      <div class="field"><label for="email-subject">Subject</label><input id="email-subject" value="${escapeHtml(draft.subject)}" ${user.role === "admin" ? "" : "disabled"} /></div>
+      <div class="field"><label for="email-body">Message</label><textarea id="email-body" ${user.role === "admin" ? "" : "disabled"}>${escapeHtml(draft.body)}</textarea></div>
+      <div id="email-error"></div>${user.role === "admin" ? `<div class="btn-row"><button class="btn btn-secondary" id="save-email">Save Draft</button><button class="btn" id="send-email">Send & Submit</button></div>` : `<p>Email preview only.</p>`}
+    </div>`;
+    if (user.role !== "admin") return;
+    const save = async () => api.patch(`/api/email/preview/${proposal.id}`, { subject: slot.querySelector("#email-subject").value, body: slot.querySelector("#email-body").value });
+    slot.querySelector("#save-email").addEventListener("click", async () => {
+      try { await save(); slot.querySelector("#email-error").innerHTML = `<p>Draft saved.</p>`; } catch (err) { slot.querySelector("#email-error").innerHTML = `<div class="error-banner">${escapeHtml(err.message)}</div>`; }
+    });
+    slot.querySelector("#send-email").addEventListener("click", async (e) => {
+      e.target.disabled = true;
+      try { await save(); await api.post(`/api/email/send/${proposal.id}`); await renderProposalDetail(root, user, proposal.id, navigate); }
+      catch (err) { slot.querySelector("#email-error").innerHTML = `<div class="error-banner">${escapeHtml(err.message)}</div>`; e.target.disabled = false; }
+    });
+  } catch (err) {
+    slot.innerHTML = `<div class="error-banner">${escapeHtml(err.message)}</div>`;
   }
 }
 

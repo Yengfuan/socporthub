@@ -4,11 +4,12 @@ See `SOCIAL-PORT-HUB.md` for the full product spec. This file covers conventions
 
 ## Scope note
 
-This codebase currently implements **Phases 1–3** (Foundation + Core Proposals +
-Calendar & Disposables): registration/auth, committees, the proposal lifecycle
+This codebase currently implements **Phases 1–4** (Foundation + Core Proposals +
+Calendar, Disposables, Email & Reminders): registration/auth, committees, the proposal lifecycle
 (including a comment thread and an optional reason attached to status changes), an
-in-app calendar, and hall disposables requests/approval. Email sending and reminders
-(Phase 4) are **not implemented yet** — don't assume their tables, routes, or UI exist.
+in-app calendar, hall disposables requests/approval, admin email drafts/sending, and
+reminders. The calendar is database-backed with a public iCalendar feed; do not reintroduce
+Google Calendar dependencies.
 Check `models.py` and `routes/` before referencing anything from later phases in the spec.
 
 **Calendar deviates from the spec**: it does not use the Google Calendar API (that

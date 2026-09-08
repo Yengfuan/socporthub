@@ -1,6 +1,8 @@
 """Outbound Telegram notification templates, one function per trigger in the spec's
 notification flow table. Routes call these instead of building message text inline."""
 
+from html import escape
+
 from api.config import get_settings
 from api.services.telegram import send_message
 
@@ -54,3 +56,17 @@ async def notify_user_disposable_approved(telegram_id: int, proposal_title: str,
         telegram_id,
         f"✅ Disposables approved for <b>{proposal_title}</b> — collect on {collection_date}.",
     )
+
+
+async def notify_user_email_sent(telegram_id: int, proposal_title: str) -> None:
+    await send_message(
+        telegram_id,
+        f"✅ Your proposal <b>{proposal_title}</b> has been submitted. The confirmation email is on its way.",
+    )
+
+
+async def notify_admins_reminder(sender_name: str, message: str) -> None:
+    settings = get_settings()
+    text = f"🔔 Reminder from <b>{escape(sender_name)}</b>\n\n{escape(message)}"
+    for admin_id in settings.admin_telegram_id_set:
+        await send_message(admin_id, text)

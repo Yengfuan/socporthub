@@ -36,6 +36,12 @@ class ProposalStatus(str, enum.Enum):
     finished = "finished"
 
 
+class ReminderTargetType(str, enum.Enum):
+    proposal = "proposal"
+    disposable = "disposable"
+    general = "general"
+
+
 # Server-side allowed forward transitions for proposal status.
 PROPOSAL_STATUS_TRANSITIONS: dict[ProposalStatus, set[ProposalStatus]] = {
     ProposalStatus.needs_action: {ProposalStatus.in_review},
@@ -156,3 +162,35 @@ class CalendarEvent(Base):
 
     committee: Mapped["Committee"] = relationship(back_populates="calendar_events")
     creator: Mapped["User"] = relationship()
+
+
+class Reminder(Base):
+    __tablename__ = "reminders"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    from_user: Mapped[int] = mapped_column(ForeignKey("users.id"), nullable=False)
+    message: Mapped[str] = mapped_column(Text, nullable=False)
+    target_type: Mapped[ReminderTargetType] = mapped_column(
+        Enum(ReminderTargetType, native_enum=False), nullable=False
+    )
+    target_id: Mapped[int | None] = mapped_column(Integer)
+    is_read: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+    sender: Mapped["User"] = relationship()
+
+
+class EmailDraft(Base):
+    __tablename__ = "email_drafts"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    proposal_id: Mapped[int] = mapped_column(ForeignKey("proposals.id"), unique=True, nullable=False)
+    recipient: Mapped[str] = mapped_column(String(255), nullable=False)
+    subject: Mapped[str] = mapped_column(String(255), nullable=False)
+    body: Mapped[str] = mapped_column(Text, nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), onupdate=func.now()
+    )
+
+    proposal: Mapped["Proposal"] = relationship()

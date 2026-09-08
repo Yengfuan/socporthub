@@ -3,10 +3,12 @@
 Telegram Bot + WebApp for consolidating Raffles Hall committee management under the
 Social Director. Full spec: [`SOCIAL-PORT-HUB.md`](./SOCIAL-PORT-HUB.md).
 
-**Current status:** Phases 1–3 (Foundation + Core Proposals + Calendar & Disposables) —
+**Current status:** Phases 1–4 (Foundation + Core Proposals + Calendar, Disposables,
+Email & Reminders) —
 registration/approval, committees, the proposal lifecycle with comments, an in-app
 calendar with an iCalendar subscription feed, and hall disposables requests/approval.
-Email sending and reminders (Phase 4) are not built yet.
+Email drafts/sending use Resend; reminders are stored in the app and delivered to admins
+via Telegram.
 
 The calendar deviates from the original spec: instead of the Google Calendar API (which
 requires a GCP billing account), events live in our own database and are exposed via a
@@ -25,6 +27,10 @@ alembic upgrade head
 
 uvicorn api.main:app --reload
 ```
+
+Phase 4 email sending requires `RESEND_API_KEY` and `RESEND_FROM_EMAIL` (a verified
+Resend sender). Without them, drafts and reminder features still work, but sending an
+email returns a clear configuration error.
 
 The webapp is served at `/` from static files in `webapp/`; the API lives under `/api`.
 Health check: `GET /api/health`.

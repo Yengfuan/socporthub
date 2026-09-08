@@ -1,0 +1,113 @@
+import re
+
+from fastapi import APIRouter, Depends, HTTPException, status
+from sqlalchemy.orm import Session
+
+from api.auth import get_current_admin, get_current_user
+from api.database import get_db
+from api.models import EmailDraft, Proposal, ProposalStatus, User, UserRole
+from api.schemas import EmailDraftOut, EmailDraftUpdate
+from api.services.resend_email import send_email
+from bot.notifications import notify_user_email_sent
+
+router = APIRouter(prefix="/api/email", tags=["email"])
+URL_PATTERN = re.compile(r"(?i)\b(?:https?://|www\.)\S+")
+
+
+def _without_links(value: str) -> str:
+    return URL_PATTERN.sub("", value).strip()
+
+
+def _proposal(db: Session, proposal_id: int, user: User) -> Proposal:
+    proposal = db.get(Proposal, proposal_id)
+    if not proposal:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Proposal not found")
+    if user.role != UserRole.admin and (proposal.committee_id not in user.committee_ids or proposal.submitted_by != user.id):
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Proposal not found")
+    if proposal.status != ProposalStatus.in_review:
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, "Email can only be prepared for an in-review proposal")
+    return proposal
+
+
+def _generated(proposal: Proposal) -> tuple[str, str]:
+    disposable = proposal.disposable_request
+    subject = f"[{proposal.committee.name}] Event Proposal — {proposal.title}"
+    lines = [
+        f"Dear {proposal.submitter.display_name or proposal.submitter.email},",
+        "",
+        f"Your event proposal for {proposal.committee.name} has been reviewed and submitted.",
+        "",
+        f"Event: {proposal.title}",
+        f"Date: {proposal.event_date or 'Not set'}",
+        f"Description: {proposal.description or 'Not provided'}",
+    ]
+    if disposable and disposable.approved:
+        lines += [
+            "",
+            f"Hall disposables have been approved for collection on {disposable.collection_date}:",
+            f"  - Plates: {disposable.plates}",
+            f"  - Cups: {disposable.cups}",
+            f"  - Forks: {disposable.forks}",
+            f"  - Spoons: {disposable.spoons}",
+        ]
+    lines += ["", "If you have any questions, feel free to reach out.", "", "Best regards,", "Social Director, Raffles Hall"]
+    return subject, "\n".join(lines)
+
+
+def _get_or_create(db: Session, proposal: Proposal) -> EmailDraft:
+    draft = db.query(EmailDraft).filter(EmailDraft.proposal_id == proposal.id).first()
+    if draft:
+        return draft
+    subject, body = _generated(proposal)
+    draft = EmailDraft(proposal_id=proposal.id, recipient=proposal.submitter.email, subject=subject, body=body)
+    db.add(draft)
+    db.commit()
+    db.refresh(draft)
+    return draft
+
+
+@router.get("/preview/{proposal_id}", response_model=EmailDraftOut)
+def preview_email(proposal_id: int, db: Session = Depends(get_db), user: User = Depends(get_current_user)) -> EmailDraft:
+    return _get_or_create(db, _proposal(db, proposal_id, user))
+
+
+@router.patch("/preview/{proposal_id}", response_model=EmailDraftOut)
+def edit_email(
+    proposal_id: int,
+    req: EmailDraftUpdate,
+    db: Session = Depends(get_db),
+    _admin: User = Depends(get_current_admin),
+) -> EmailDraft:
+    proposal = _proposal(db, proposal_id, _admin)
+    draft = _get_or_create(db, proposal)
+    draft.subject = req.subject
+    draft.body = req.body
+    db.commit()
+    db.refresh(draft)
+    return draft
+
+
+@router.post("/send/{proposal_id}", response_model=EmailDraftOut)
+async def send_proposal_email(
+    proposal_id: int,
+    db: Session = Depends(get_db),
+    admin: User = Depends(get_current_admin),
+) -> EmailDraft:
+    proposal = _proposal(db, proposal_id, admin)
+    draft = _get_or_create(db, proposal)
+    # Keep outbound mail link-free to reduce the chance of organisational filtering.
+    # Apply this at send time as well as in the generated template because admins can
+    # edit drafts before sending.
+    safe_subject = _without_links(draft.subject)
+    safe_body = _without_links(draft.body)
+    if safe_subject != draft.subject or safe_body != draft.body:
+        draft.subject = safe_subject
+        draft.body = safe_body
+        db.commit()
+        db.refresh(draft)
+    await send_email(to=draft.recipient, subject=draft.subject, body=draft.body)
+    proposal.status = ProposalStatus.submitted
+    db.commit()
+    db.refresh(draft)
+    await notify_user_email_sent(proposal.submitter.telegram_id, proposal.title)
+    return draft

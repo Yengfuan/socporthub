@@ -2,7 +2,7 @@ from datetime import date, datetime
 
 from pydantic import BaseModel, ConfigDict, EmailStr
 
-from api.models import ProposalStatus, UserRole, UserStatus
+from api.models import ProposalStatus, ReminderTargetType, UserRole, UserStatus
 
 
 # --- Auth ---
@@ -171,3 +171,41 @@ class CalendarEventOut(BaseModel):
 
 class CalendarFeedUrlOut(BaseModel):
     url: str
+
+
+class EmailDraftUpdate(BaseModel):
+    subject: str
+    body: str
+
+
+class EmailDraftOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: int
+    proposal_id: int
+    recipient: str
+    subject: str
+    body: str
+    created_at: datetime
+    updated_at: datetime
+
+
+class ReminderCreate(BaseModel):
+    message: str
+    target_type: ReminderTargetType = ReminderTargetType.general
+    target_id: int | None = None
+
+
+class ReminderOut(BaseModel):
+    id: int
+    from_user: int
+    sender_name: str | None
+    message: str
+    target_type: ReminderTargetType
+    target_id: int | None
+    is_read: bool
+    created_at: datetime
+
+
+class ReminderUnreadCount(BaseModel):
+    count: int

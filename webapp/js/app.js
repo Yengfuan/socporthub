@@ -4,6 +4,7 @@ import { renderHome } from "./pages/home.js";
 import { renderNewProposal, renderProposalDetail } from "./pages/proposal-detail.js";
 import { renderAdminDashboard } from "./pages/admin-dashboard.js";
 import { renderCalendar } from "./pages/calendar.js";
+import { renderReminders } from "./pages/reminders.js";
 import { renderBottomNav } from "./components/nav.js";
 
 const tg = window.Telegram?.WebApp;
@@ -13,7 +14,7 @@ tg?.expand();
 const app = document.getElementById("app");
 let currentUser = null;
 
-const TOP_LEVEL_ROUTES = new Set(["home", "admin", "calendar"]);
+const TOP_LEVEL_ROUTES = new Set(["home", "admin", "calendar", "reminders"]);
 
 function navigate(route) {
   window.location.hash = route;
@@ -23,14 +24,18 @@ function currentRoute() {
   return window.location.hash.replace(/^#\/?/, "") || "home";
 }
 
-function setNav(activeRoute) {
+async function setNav(activeRoute) {
   let nav = app.querySelector(".bottom-nav");
   if (!TOP_LEVEL_ROUTES.has(activeRoute)) {
     nav?.remove();
     return;
   }
   const navRoute = activeRoute === "admin" ? "home" : activeRoute;
-  const html = renderBottomNav(navRoute);
+  let reminderCount = 0;
+  if (currentUser?.role === "admin") {
+    try { reminderCount = (await api.get("/api/reminders/unread-count")).count; } catch { /* keep nav usable */ }
+  }
+  const html = renderBottomNav(navRoute, reminderCount);
   if (nav) {
     nav.outerHTML = html;
   } else {
@@ -78,6 +83,8 @@ async function render() {
       await renderAdminDashboard(page);
     } else if (route === "calendar") {
       await renderCalendar(page, currentUser);
+    } else if (route === "reminders") {
+      await renderReminders(page, currentUser);
     } else if (route === "proposal/new") {
       renderNewProposal(page, navigate);
     } else if (route.startsWith("proposal/")) {
@@ -91,7 +98,7 @@ async function render() {
     page.innerHTML = `<div class="error-banner">${err.message}</div>`;
   }
 
-  setNav(route);
+  await setNav(route);
 }
 
 // Delegate clicks on any [data-nav] element to the hash router.

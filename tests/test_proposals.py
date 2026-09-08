@@ -104,6 +104,36 @@ def test_proposal_lifecycle_and_status_guardrails(client):
     assert edit_blocked.status_code == 403
 
 
+def test_admin_can_clear_event_date_after_finished(client):
+    register(client, ADMIN, "admin@example.com")
+    _approve_user(client, USER_A, "a@example.com")
+
+    create = client.post(
+        "/api/proposals",
+        json={"title": "Movie Night", "event_date": "2026-10-01"},
+        headers=auth_header(USER_A),
+    )
+    proposal_id = create.json()["id"]
+
+    client.patch(f"/api/proposals/{proposal_id}", json={"status": "in_review"}, headers=auth_header(ADMIN))
+    client.patch(f"/api/proposals/{proposal_id}", json={"status": "submitted"}, headers=auth_header(ADMIN))
+    finish = client.patch(f"/api/proposals/{proposal_id}", json={"status": "finished"}, headers=auth_header(ADMIN))
+    assert finish.json()["event_date"] == "2026-10-01"
+
+    # Omitting event_date entirely leaves it untouched.
+    untouched = client.patch(f"/api/proposals/{proposal_id}", json={"description": "note"}, headers=auth_header(ADMIN))
+    assert untouched.json()["event_date"] == "2026-10-01"
+
+    # Admin can edit content fields even after finished, and explicit null clears it.
+    cleared = client.patch(f"/api/proposals/{proposal_id}", json={"event_date": None}, headers=auth_header(ADMIN))
+    assert cleared.status_code == 200
+    assert cleared.json()["event_date"] is None
+
+    # title is NOT NULL at the DB level — clearing it is rejected, not a 500.
+    title_clear = client.patch(f"/api/proposals/{proposal_id}", json={"title": None}, headers=auth_header(ADMIN))
+    assert title_clear.status_code == 400
+
+
 def test_committee_scoped_visibility(client):
     register(client, ADMIN, "admin@example.com")
     _approve_user(client, USER_A, "a@example.com", committee_index=0)

@@ -1,4 +1,4 @@
-# Social Port Hub — Project Specification
+I've# Social Port Hub — Project Specification
 
 > Telegram Bot + WebApp for consolidating Raffles Hall committee management under the Social Director.
 
@@ -369,6 +369,8 @@ on {disposable.collection_date}:
 
 If you have any questions, feel free to reach out.
 
+
+
 Best regards,
 {admin.display_name}
 Social Director, Raffles Hall
@@ -525,12 +527,12 @@ SECRET_KEY=                   # For session/HMAC
 - [ ] Disposable approval flow
 
 ### Phase 4 — Email & Reminders
-- [ ] Email draft auto-generation from proposal data
-- [ ] Admin email preview + edit UI on proposal detail page
-- [ ] Resend integration — admin sends email, proposal auto-advances to `submitted`
-- [ ] Verified sender setup (domain or single sender email)
-- [ ] Reminder system (user → admin nudges)
-- [ ] Admin reminder inbox with badge count
+- [x] Email draft auto-generation from proposal data
+- [x] Admin email preview + edit UI on proposal detail page
+- [x] Resend integration — admin sends email, proposal auto-advances to `submitted`
+- [x] Verified sender setup (domain or single sender email)
+- [x] Reminder system (user → admin nudges)
+- [x] Admin reminder inbox with badge count
 
 ### Phase 5 — Polish
 - [ ] Admin committee tabs with per-committee filtering
@@ -538,6 +540,9 @@ SECRET_KEY=                   # For session/HMAC
 - [ ] Scheduled morning notification for today's disposable collections
 - [ ] Empty states, loading states, error handling
 - [ ] Mobile UI pass — test in actual Telegram WebApp
+- [ ] Add time to disposables collection requests
+- [ ] Add save button and functionality for proposal submission for review
+- [ ] Add poster section and blast message section for user upload, for admin to view
 
 ### Phase 6 — AI Reviewer [DEFERRED]
 - [ ] Google Docs API read access

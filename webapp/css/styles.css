@@ -406,6 +406,19 @@ a {
   color: var(--accent);
 }
 
+.nav-badge {
+  display: inline-flex;
+  min-width: 18px;
+  height: 18px;
+  align-items: center;
+  justify-content: center;
+  padding: 0 5px;
+  border-radius: 999px;
+  background: var(--red-bg);
+  color: var(--red-text);
+  font-size: 10px;
+}
+
 .error-banner {
   background: var(--red-bg);
   color: var(--red-text);

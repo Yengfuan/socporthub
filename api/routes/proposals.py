@@ -154,16 +154,20 @@ async def update_proposal(
         proposal.status = req.status
 
     content_fields = ("title", "description", "doc_link", "event_date")
-    if any(getattr(req, f) is not None for f in content_fields):
+    # Use model_fields_set (not "is not None") so a client can explicitly clear a
+    # nullable field — e.g. {"event_date": null} — by including the key in the payload.
+    # Omitting the key entirely means "leave this field alone".
+    provided_content_fields = req.model_fields_set & set(content_fields)
+    if provided_content_fields:
         if not is_admin and not (is_owner and proposal.status == ProposalStatus.needs_action):
             raise HTTPException(
                 status.HTTP_403_FORBIDDEN,
                 "Proposal can only be edited by its owner while in needs_action",
             )
-        for field in content_fields:
-            value = getattr(req, field)
-            if value is not None:
-                setattr(proposal, field, value)
+        if "title" in provided_content_fields and req.title is None:
+            raise HTTPException(status.HTTP_400_BAD_REQUEST, "title cannot be cleared")
+        for field in provided_content_fields:
+            setattr(proposal, field, getattr(req, field))
 
     if req.comment:
         db.add(ProposalComment(proposal_id=proposal.id, author_id=user.id, body=req.comment))
