@@ -12,9 +12,9 @@ export async function renderReminders(root, user) {
   root.innerHTML = `
     <h1>Reminders</h1>
     ${!isAdmin ? `<form id="reminder-form" class="card">
-      <h3>Nudge the admin</h3>
+      <h3>Nudge your portfolio director</h3>
       <div class="field"><label for="reminder-message">Message</label><textarea id="reminder-message" required placeholder="What needs attention?"></textarea></div>
-      <div id="reminder-error"></div>
+      <div id="reminder-error"></div>. 
       <button class="btn" type="submit">Send Reminder</button>
     </form>` : ""}
     <h2>${isAdmin ? "Inbox" : "Sent reminders"}</h2>

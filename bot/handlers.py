@@ -51,7 +51,7 @@ async def _handle_start(chat_id: int) -> None:
     if settings.telegram_webapp_url:
         await send_message(
             chat_id,
-            "Welcome to Social Port Hub! Tap below to open the app.",
+            "Use the button below to acces the Social Port Hub!\n\n💡 Tip: Pin this message so you can easily open the app anytime.",
             reply_markup=webapp_open_markup(settings.telegram_webapp_url),
         )
     else:

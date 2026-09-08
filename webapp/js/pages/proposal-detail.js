@@ -22,6 +22,51 @@ function escapeHtml(s) {
   return div.innerHTML;
 }
 
+const CATEGORY_LABELS = {
+  event: "Event",
+  initiative: "Initiative",
+  decor: "Decor",
+  pantry_cleaning: "Pantry Cleaning",
+  merch: "Merch",
+};
+const CATEGORY_REQUIRES_POSTER = ["event", "initiative", "merch"];
+const CATEGORY_REQUIRES_DOC = ["event", "merch"];
+const CATEGORY_REQUIRES_BLAST = ["event", "initiative"];
+const CATEGORY_REQUIRES_EVENT_DATE = ["event", "initiative", "pantry_cleaning"];
+
+function categoryOptions(selected) {
+  return Object.entries(CATEGORY_LABELS)
+    .map(([value, label]) => `<option value="${value}" ${selected === value ? "selected" : ""}>${label}</option>`)
+    .join("");
+}
+
+// Shared by the new-proposal and edit forms: shows/hides the poster field and updates
+// each requirement hint based on the selected category.
+function applyCategoryRequirements(root, categoryValue) {
+  const needsPoster = CATEGORY_REQUIRES_POSTER.includes(categoryValue);
+  const needsDoc = CATEGORY_REQUIRES_DOC.includes(categoryValue);
+  const needsBlast = CATEGORY_REQUIRES_BLAST.includes(categoryValue);
+  const needsEventDate = CATEGORY_REQUIRES_EVENT_DATE.includes(categoryValue);
+
+  const posterField = root.querySelector("[data-poster-field]");
+  if (posterField) posterField.style.display = needsPoster ? "block" : "none";
+
+  const docHint = root.querySelector("[data-doc-hint]");
+  if (docHint) docHint.textContent = needsDoc ? "(required for this category)" : "(optional)";
+
+  const blastLabel = root.querySelector("[data-blast-label]");
+  if (blastLabel) {
+    blastLabel.innerHTML = `Blast message ${
+      needsBlast ? '<span class="field-hint">(required for this category)</span>' : "(optional)"
+    }`;
+  }
+
+  const eventDateHint = root.querySelector("[data-event-date-hint]");
+  if (eventDateHint) eventDateHint.textContent = needsEventDate ? "(required for this category)" : "(optional)";
+
+  return { needsPoster, needsDoc, needsBlast, needsEventDate };
+}
+
 export function renderNewProposal(root, navigate) {
   const saved = {};
   root.innerHTML = `
@@ -37,11 +82,7 @@ export function renderNewProposal(root, navigate) {
       <div class="field">
         <label for="category">Category</label>
         <select id="category" name="category" required>
-          <option value="event" ${saved.category === "event" ? "selected" : ""}>Event</option>
-          <option value="initiative" ${saved.category === "initiative" ? "selected" : ""}>Initiative</option>
-          <option value="decor" ${saved.category === "decor" ? "selected" : ""}>Decor</option>
-          <option value="pantry_cleaning" ${!saved.category || saved.category === "pantry_cleaning" ? "selected" : ""}>Pantry Cleaning</option>
-          <option value="merch" ${saved.category === "merch" ? "selected" : ""}>Merch</option>
+          ${categoryOptions(saved.category || "pantry_cleaning")}
         </select>
       </div>
       <div class="field">
@@ -49,19 +90,19 @@ export function renderNewProposal(root, navigate) {
         <textarea id="description" name="description">${escapeHtml(saved.description)}</textarea>
       </div>
       <div class="field">
-        <label for="event_date">Event date</label>
+        <label for="event_date">Event date <span data-event-date-hint></span></label>
         <input type="date" id="event_date" name="event_date" value="${escapeHtml(saved.event_date)}" />
       </div>
       <div class="field">
-        <label for="doc_link">Link / PDF URL <span id="doc-required-hint"></span></label>
+        <label for="doc_link">Link / PDF URL <span data-doc-hint></span></label>
         <input type="url" id="doc_link" name="doc_link" placeholder="https://" value="${escapeHtml(saved.doc_link)}" />
       </div>
-      <div class="field" id="poster-field">
+      <div class="field" data-poster-field>
         <label for="poster">Poster <span class="field-hint">Required for Event, Initiative, and Merch</span></label>
         <input type="file" id="poster" name="poster" accept="image/jpeg,image/png,image/webp,application/pdf" />
       </div>
       <div class="field">
-        <label for="blast_message">Blast message (optional)</label>
+        <label for="blast_message" data-blast-label>Blast message (optional)</label>
         <textarea id="blast_message" name="blast_message" placeholder="Message to accompany the event announcement">${escapeHtml(saved.blast_message)}</textarea>
       </div>
       <div id="form-error"></div>
@@ -71,21 +112,8 @@ export function renderNewProposal(root, navigate) {
 
   const form = root.querySelector("#proposal-form");
   const category = root.querySelector("#category");
-  const posterField = root.querySelector("#poster-field");
-  const docLink = root.querySelector("#doc_link");
-  const updateRequirements = () => {
-    const needsPoster = ["event", "initiative", "merch"].includes(category.value);
-    const needsDoc = ["event", "initiative", "merch"].includes(category.value);
-    const needsBlast = ["event", "initiative"].includes(category.value);
-    posterField.style.display = needsPoster ? "block" : "none";
-    root.querySelector("#poster").required = false; // upload happens after proposal creation
-    docLink.required = false;
-    root.querySelector("#doc-required-hint").textContent = needsDoc ? "(required for this category)" : "(optional)";
-    root.querySelector("#blast_message").required = false;
-    root.querySelector("#blast_message").previousElementSibling.innerHTML = `Blast message ${needsBlast ? "<span class=\"field-hint\">(required for this category)</span>" : "(optional)"}`;
-  };
-  category.addEventListener("change", updateRequirements);
-  updateRequirements();
+  category.addEventListener("change", () => applyCategoryRequirements(root, category.value));
+  applyCategoryRequirements(root, category.value);
 
   root.querySelector("#save-draft").addEventListener("click", async () => {
     const saveButton = root.querySelector("#save-draft");
@@ -124,13 +152,16 @@ export function renderNewProposal(root, navigate) {
     try {
       const categoryValue = e.target.category.value;
       const poster = e.target.poster.files[0];
-      if (["event", "initiative", "merch"].includes(categoryValue) && !poster) {
+      if (CATEGORY_REQUIRES_EVENT_DATE.includes(categoryValue) && !e.target.event_date.value) {
+        throw new Error("Please provide an event date for this category.");
+      }
+      if (CATEGORY_REQUIRES_POSTER.includes(categoryValue) && !poster) {
         throw new Error("Please select a poster for this category.");
       }
-      if (["event", "initiative", "merch"].includes(categoryValue) && !e.target.doc_link.value.trim()) {
+      if (CATEGORY_REQUIRES_DOC.includes(categoryValue) && !e.target.doc_link.value.trim()) {
         throw new Error("Please provide a link or PDF URL for this category.");
       }
-      if (["event", "initiative"].includes(categoryValue) && !e.target.blast_message.value.trim()) {
+      if (CATEGORY_REQUIRES_BLAST.includes(categoryValue) && !e.target.blast_message.value.trim()) {
         throw new Error("Please provide a blast message for this category.");
       }
       const proposal = await api.post("/api/proposals", {
@@ -145,8 +176,6 @@ export function renderNewProposal(root, navigate) {
         const formData = new FormData();
         formData.append("poster", poster);
         await api.upload(`/api/proposals/${proposal.id}/poster`, formData);
-      } else if (["event", "initiative", "merch"].includes(e.target.category.value)) {
-        throw new Error("Please select a poster for this category.");
       }
       navigate(`proposal/${proposal.id}`);
     } catch (err) {
@@ -306,16 +335,10 @@ async function renderEmailSection(root, user, proposal, navigate) {
 
 function renderEditForm(slot, proposal, navigate) {
   slot.innerHTML = `
-    <form id="edit-form" style="margin-top:16px">
+    <form id="edit-form" class="card" style="margin-top:16px">
       <div class="field">
         <label for="e-category">Category</label>
-        <select id="e-category">
-          <option value="event" ${proposal.category === "event" ? "selected" : ""}>Event</option>
-          <option value="initiative" ${proposal.category === "initiative" ? "selected" : ""}>Initiative</option>
-          <option value="decor" ${proposal.category === "decor" ? "selected" : ""}>Decor</option>
-          <option value="pantry_cleaning" ${proposal.category === "pantry_cleaning" ? "selected" : ""}>Pantry Cleaning</option>
-          <option value="merch" ${proposal.category === "merch" ? "selected" : ""}>Merch</option>
-        </select>
+        <select id="e-category">${categoryOptions(proposal.category)}</select>
       </div>
       <div class="field">
         <label for="e-title">Title</label>
@@ -326,34 +349,82 @@ function renderEditForm(slot, proposal, navigate) {
         <textarea id="e-description">${escapeHtml(proposal.description)}</textarea>
       </div>
       <div class="field">
-        <label for="e-event_date">Event date</label>
+        <label for="e-event_date">Event date <span data-event-date-hint></span></label>
         <input type="date" id="e-event_date" value="${proposal.event_date || ""}" />
       </div>
       <div class="field">
-        <label for="e-doc_link">Google Doc / link</label>
-        <input type="url" id="e-doc_link" value="${escapeHtml(proposal.doc_link)}" />
+        <label for="e-doc_link">Link / PDF URL <span data-doc-hint></span></label>
+        <input type="url" id="e-doc_link" value="${escapeHtml(proposal.doc_link)}" placeholder="https://" />
+      </div>
+      <div class="field" data-poster-field>
+        <label for="e-poster">Poster <span class="field-hint">Required for Event, Initiative, and Merch</span></label>
+        ${
+          proposal.poster_filename
+            ? `<p class="field-hint">Current: <a href="/api/proposals/${proposal.id}/poster" target="_blank" rel="noopener">${escapeHtml(proposal.poster_filename)}</a> — choose a file below to replace it.</p>`
+            : ""
+        }
+        <input type="file" id="e-poster" accept="image/jpeg,image/png,image/webp,application/pdf" />
       </div>
       <div class="field">
-        <label for="e-blast_message">Blast message</label>
+        <label for="e-blast_message" data-blast-label>Blast message</label>
         <textarea id="e-blast_message">${escapeHtml(proposal.blast_message)}</textarea>
       </div>
       <div id="edit-error"></div>
-      <button type="submit" class="btn">Save Changes</button>
+      <div class="btn-row">
+        <button type="button" class="btn btn-secondary" id="edit-cancel">Cancel</button>
+        <button type="submit" class="btn">Save Changes</button>
+      </div>
     </form>
   `;
 
-  slot.querySelector("#edit-form").addEventListener("submit", async (e) => {
+  const form = slot.querySelector("#edit-form");
+  const category = slot.querySelector("#e-category");
+  category.addEventListener("change", () => applyCategoryRequirements(slot, category.value));
+  applyCategoryRequirements(slot, category.value);
+
+  slot.querySelector("#edit-cancel").addEventListener("click", () => {
+    slot.innerHTML = "";
+  });
+
+  form.addEventListener("submit", async (e) => {
     e.preventDefault();
     const errorEl = slot.querySelector("#edit-error");
+    errorEl.innerHTML = "";
+    const categoryValue = category.value;
+    const poster = slot.querySelector("#e-poster").files[0];
+    const hasExistingPoster = Boolean(proposal.poster_filename);
+
+    if (CATEGORY_REQUIRES_EVENT_DATE.includes(categoryValue) && !slot.querySelector("#e-event_date").value) {
+      errorEl.innerHTML = `<div class="error-banner">Please provide an event date for this category.</div>`;
+      return;
+    }
+    if (CATEGORY_REQUIRES_POSTER.includes(categoryValue) && !poster && !hasExistingPoster) {
+      errorEl.innerHTML = `<div class="error-banner">Please select a poster for this category.</div>`;
+      return;
+    }
+    if (CATEGORY_REQUIRES_DOC.includes(categoryValue) && !slot.querySelector("#e-doc_link").value.trim()) {
+      errorEl.innerHTML = `<div class="error-banner">Please provide a link or PDF URL for this category.</div>`;
+      return;
+    }
+    if (CATEGORY_REQUIRES_BLAST.includes(categoryValue) && !slot.querySelector("#e-blast_message").value.trim()) {
+      errorEl.innerHTML = `<div class="error-banner">Please provide a blast message for this category.</div>`;
+      return;
+    }
+
     try {
       await api.patch(`/api/proposals/${proposal.id}`, {
-        category: slot.querySelector("#e-category").value,
+        category: categoryValue,
         title: slot.querySelector("#e-title").value.trim(),
         description: slot.querySelector("#e-description").value.trim() || null,
         event_date: slot.querySelector("#e-event_date").value || null,
         doc_link: slot.querySelector("#e-doc_link").value.trim() || null,
         blast_message: slot.querySelector("#e-blast_message").value.trim() || null,
       });
+      if (poster) {
+        const formData = new FormData();
+        formData.append("poster", poster);
+        await api.upload(`/api/proposals/${proposal.id}/poster`, formData);
+      }
       navigate(`proposal/${proposal.id}`);
     } catch (err) {
       errorEl.innerHTML = `<div class="error-banner">${err.message}</div>`;

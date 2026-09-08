@@ -34,21 +34,14 @@ export async function renderCalendar(root, user, state = {}) {
 
   root.innerHTML = `<div class="loading">Loading…</div>`;
 
-  const [committees, events, proposals, feed] = await Promise.all([
+  const [committees, events, feed] = await Promise.all([
     api.get("/api/committees"),
     fetchEvents(year, month, committeeId),
-    api.get("/api/proposals").catch(() => []),
     api.get("/api/calendar/feed-url").catch(() => null),
   ]);
 
   const { start, end, first, last } = gridRange(year, month);
   const eventsByDate = groupByDate(events, (e) => e.date);
-  // Only show a proposal's date on the calendar once it's confirmed enough to matter —
-  // needs_action/in_review are still "not yet decided", so they'd be noise here.
-  const proposalDatesByDate = groupByDate(
-    proposals.filter((p) => p.event_date && (p.status === "submitted" || p.status === "finished")),
-    (p) => p.event_date
-  );
 
   const monthLabel = first.toLocaleDateString(undefined, { month: "long", year: "numeric", timeZone: "UTC" });
 
@@ -58,7 +51,6 @@ export async function renderCalendar(root, user, state = {}) {
     const inMonth = d >= first && d <= last;
     const isToday = iso === toISODate(today);
     const dayEvents = eventsByDate.get(iso) || [];
-    const dayProposals = proposalDatesByDate.get(iso) || [];
 
     cells.push(`
       <div class="cal-cell ${inMonth ? "" : "cal-cell-outside"} ${isToday ? "cal-cell-today" : ""} ${
@@ -70,7 +62,6 @@ export async function renderCalendar(root, user, state = {}) {
             .slice(0, 3)
             .map((e) => `<span class="cal-dot" style="background:${e.committee_color || "var(--text-muted)"}"></span>`)
             .join("")}
-          ${dayProposals.length ? `<span class="cal-dot cal-dot-proposal"></span>` : ""}
         </div>
       </div>
     `);
@@ -154,7 +145,6 @@ export async function renderCalendar(root, user, state = {}) {
       root.querySelector("#cal-day-panel"),
       selectedDate,
       eventsByDate.get(selectedDate) || [],
-      proposalDatesByDate.get(selectedDate) || [],
       user,
       () => renderCalendar(root, user, { year, month, committeeId, selectedDate })
     );
@@ -199,7 +189,7 @@ function groupByDate(items, keyFn) {
   return map;
 }
 
-function renderDayPanel(panel, dateStr, events, proposals, user, refresh) {
+function renderDayPanel(panel, dateStr, events, user, refresh) {
   const isAdmin = user.role === "admin";
 
   panel.innerHTML = `
@@ -227,22 +217,8 @@ function renderDayPanel(panel, dateStr, events, proposals, user, refresh) {
         </div>`
             )
             .join("")
-        : ""
+        : `<p>Nothing scheduled this day.</p>`
     }
-    ${
-      proposals.length
-        ? proposals
-            .map(
-              (p) => `
-        <a class="card proposal-card" data-nav="proposal/${p.id}">
-          <div class="title">${escapeHtml(p.title)}</div>
-          <div class="meta"><span>Proposal event date</span></div>
-        </a>`
-            )
-            .join("")
-        : ""
-    }
-    ${!events.length && !proposals.length ? `<p>Nothing scheduled this day.</p>` : ""}
   `;
 
   if (!isAdmin) return;

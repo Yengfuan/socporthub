@@ -91,6 +91,31 @@ def status_summary(
     return counts
 
 
+def _validate_category_requirements(
+    category: ProposalCategory,
+    *,
+    event_date,
+    doc_link: str | None,
+    blast_message: str | None,
+    poster_data: bytes | None,
+    check_poster: bool,
+) -> None:
+    """Shared field requirements for a proposal about to become in_review.
+
+    check_poster is False at creation time — a poster upload is a separate follow-up
+    call after the proposal exists, so it can't be checked yet there. The frontend
+    still enforces it client-side before allowing that follow-up call to be skipped.
+    """
+    if category in (ProposalCategory.event, ProposalCategory.initiative, ProposalCategory.pantry_cleaning) and not event_date:
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, "An event date is required for this category")
+    if check_poster and category in (ProposalCategory.event, ProposalCategory.initiative, ProposalCategory.merch) and not poster_data:
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, "A poster is required for this category")
+    if category in (ProposalCategory.event, ProposalCategory.merch) and not doc_link:
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, "A link or PDF URL is required for this category")
+    if category in (ProposalCategory.event, ProposalCategory.initiative) and not blast_message:
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, "A blast message is required for this category")
+
+
 @router.post("", response_model=ProposalOut, status_code=status.HTTP_201_CREATED)
 async def create_proposal(
     req: ProposalCreateRequest,
@@ -99,6 +124,15 @@ async def create_proposal(
 ) -> ProposalOut:
     if not user.committee_ids:
         raise HTTPException(status.HTTP_400_BAD_REQUEST, "You are not assigned to a committee yet")
+    if not req.save_draft:
+        _validate_category_requirements(
+            req.category,
+            event_date=req.event_date,
+            doc_link=req.doc_link,
+            blast_message=req.blast_message,
+            poster_data=None,
+            check_poster=False,
+        )
     # A user may belong to multiple committees; submit under the first for MVP simplicity.
     committee_id = sorted(user.committee_ids)[0]
 
@@ -186,13 +220,14 @@ async def update_proposal(
             setattr(proposal, field, getattr(req, field))
 
     if req.status == ProposalStatus.in_review:
-        if proposal.category in (ProposalCategory.event, ProposalCategory.initiative, ProposalCategory.merch):
-            if not proposal.poster_data:
-                raise HTTPException(status.HTTP_400_BAD_REQUEST, "A poster is required for this category")
-            if not proposal.doc_link:
-                raise HTTPException(status.HTTP_400_BAD_REQUEST, "A link or PDF URL is required for this category")
-        if proposal.category in (ProposalCategory.event, ProposalCategory.initiative) and not proposal.blast_message:
-            raise HTTPException(status.HTTP_400_BAD_REQUEST, "A blast message is required for this category")
+        _validate_category_requirements(
+            proposal.category,
+            event_date=proposal.event_date,
+            doc_link=proposal.doc_link,
+            blast_message=proposal.blast_message,
+            poster_data=proposal.poster_data,
+            check_poster=True,
+        )
 
     if req.comment:
         db.add(ProposalComment(proposal_id=proposal.id, author_id=user.id, body=req.comment))
