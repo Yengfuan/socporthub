@@ -29,6 +29,8 @@ export async function renderCalendar(root, user, state = {}) {
   const month = state.month ?? today.getUTCMonth();
   const committeeId = state.committeeId ?? null;
   const selectedDate = state.selectedDate ?? null;
+  const addingEvent = state.addingEvent ?? false;
+  const isAdmin = user.role === "admin";
 
   root.innerHTML = `<div class="loading">Loading…</div>`;
 
@@ -107,9 +109,13 @@ export async function renderCalendar(root, user, state = {}) {
 
     <div id="cal-day-panel" style="margin-top:16px"></div>
 
-    <div class="fab">
-      <a class="btn" id="cal-add-event">+ Add Event</a>
-    </div>
+    ${
+      isAdmin
+        ? `<div class="fab">
+             <a class="btn" id="cal-add-event">${addingEvent ? "Cancel" : "+ Add Event"}</a>
+           </div>`
+        : ""
+    }
   `;
 
   root.querySelector("#cal-prev").addEventListener("click", () => {
@@ -127,6 +133,7 @@ export async function renderCalendar(root, user, state = {}) {
   });
   root.querySelectorAll(".cal-cell").forEach((cell) => {
     cell.addEventListener("click", () => {
+      // Selecting a day always shows that day's view, closing any open add-event form.
       renderCalendar(root, user, { year, month, committeeId, selectedDate: cell.dataset.date });
     });
   });
@@ -134,13 +141,15 @@ export async function renderCalendar(root, user, state = {}) {
     e.preventDefault();
     renderSubscribePanel(root.querySelector("#cal-day-panel"), feed.url);
   });
-  root.querySelector("#cal-add-event").addEventListener("click", () => {
-    renderEventForm(root.querySelector("#cal-day-panel"), user, committees, selectedDate, () =>
-      renderCalendar(root, user, { year, month, committeeId, selectedDate })
-    );
+  root.querySelector("#cal-add-event")?.addEventListener("click", () => {
+    renderCalendar(root, user, { year, month, committeeId, selectedDate, addingEvent: !addingEvent });
   });
 
-  if (selectedDate) {
+  if (addingEvent) {
+    renderEventForm(root.querySelector("#cal-day-panel"), user, committees, selectedDate, () =>
+      renderCalendar(root, user, { year, month, committeeId, selectedDate, addingEvent: false })
+    );
+  } else if (selectedDate) {
     renderDayPanel(
       root.querySelector("#cal-day-panel"),
       selectedDate,

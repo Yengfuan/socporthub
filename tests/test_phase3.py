@@ -47,8 +47,7 @@ def test_comment_thread_and_status_change_reason(client):
     comments = client.get(f"/api/proposals/{proposal_id}/comments", headers=auth_header(USER_A)).json()
     assert len(comments) == 1
 
-    # Move to in_review, then send back with a reason attached.
-    client.patch(f"/api/proposals/{proposal_id}", json={"status": "in_review"}, headers=auth_header(ADMIN))
+    # A fresh submission starts at in_review already; send it back with a reason attached.
     revert = client.patch(
         f"/api/proposals/{proposal_id}",
         json={"status": "needs_action", "comment": "Please add a budget breakdown"},
@@ -201,7 +200,7 @@ def test_finished_proposal_syncs_to_calendar(client):
     ).json()
     assert events == []
 
-    client.patch(f"/api/proposals/{proposal['id']}", json={"status": "in_review"}, headers=auth_header(ADMIN))
+    # Already in_review from submission — advance straight to submitted.
     client.patch(f"/api/proposals/{proposal['id']}", json={"status": "submitted"}, headers=auth_header(ADMIN))
     finish = client.patch(
         f"/api/proposals/{proposal['id']}", json={"status": "finished"}, headers=auth_header(ADMIN)

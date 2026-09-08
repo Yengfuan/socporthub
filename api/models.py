@@ -54,8 +54,11 @@ class ReminderTargetType(str, enum.Enum):
 
 
 # Server-side allowed forward transitions for proposal status.
+# needs_action is reached only when an admin sends an in-review proposal back — it is
+# not a step every submission passes through. A submission (from draft, or fresh) goes
+# straight to in_review; the owner resubmits from needs_action back to in_review too.
 PROPOSAL_STATUS_TRANSITIONS: dict[ProposalStatus, set[ProposalStatus]] = {
-    ProposalStatus.draft: {ProposalStatus.needs_action},
+    ProposalStatus.draft: {ProposalStatus.in_review},
     ProposalStatus.needs_action: {ProposalStatus.in_review},
     ProposalStatus.in_review: {ProposalStatus.submitted, ProposalStatus.needs_action},
     ProposalStatus.submitted: {ProposalStatus.finished},

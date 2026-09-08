@@ -3,7 +3,7 @@ import { statusBadge } from "../components/status-badge.js";
 import { renderDisposableSection } from "../components/disposable-form.js";
 
 const NEXT_STATUS = {
-  draft: "needs_action",
+  draft: "in_review",
   needs_action: "in_review",
   in_review: "submitted",
   submitted: "finished",
@@ -11,7 +11,7 @@ const NEXT_STATUS = {
 
 const NEXT_STATUS_LABEL = {
   draft: "Submit for Review",
-  needs_action: "Move to In Review",
+  needs_action: "Resubmit for Review",
   in_review: "Mark Submitted",
   submitted: "Mark Finished",
 };
@@ -20,15 +20,6 @@ function escapeHtml(s) {
   const div = document.createElement("div");
   div.textContent = s ?? "";
   return div.innerHTML;
-}
-
-function formatTimestamp(iso) {
-  return new Date(iso).toLocaleString(undefined, {
-    month: "short",
-    day: "numeric",
-    hour: "numeric",
-    minute: "2-digit",
-  });
 }
 
 export function renderNewProposal(root, navigate) {
@@ -168,18 +159,16 @@ export function renderNewProposal(root, navigate) {
 
 export async function renderProposalDetail(root, user, proposalId, navigate) {
   root.innerHTML = `<div class="loading">Loading…</div>`;
-  const [proposal, comments] = await Promise.all([
-    api.get(`/api/proposals/${proposalId}`),
-    api.get(`/api/proposals/${proposalId}/comments`),
-  ]);
+  const proposal = await api.get(`/api/proposals/${proposalId}`);
 
   const isAdmin = user.role === "admin";
   const isOwner = proposal.submitted_by === user.id;
-  // Admins can edit a proposal's fields (including clearing a stray event_date) at any
-  // status; a regular owner can only edit their own while it's still needs_action.
-  const canEdit = isAdmin || (isOwner && ["draft", "needs_action"].includes(proposal.status));
+  const canEdit = isOwner && ["draft", "needs_action"].includes(proposal.status);
   const nextStatus = NEXT_STATUS[proposal.status];
-  const canSubmitDraft = isOwner && proposal.status === "draft";
+  // Owner submits a fresh draft, and resubmits after being sent back to needs_action —
+  // both land on in_review. Every other status change is admin-only.
+  const canOwnerSubmit = isOwner && ["draft", "needs_action"].includes(proposal.status);
+  const adminHasAction = isAdmin && ["in_review", "submitted"].includes(proposal.status);
 
   root.innerHTML = `
     <div class="page-header">
@@ -219,7 +208,9 @@ export async function renderProposalDetail(root, user, proposalId, navigate) {
     ${canEdit ? `<button class="btn btn-secondary" id="edit-btn">Edit Proposal</button>` : ""}
 
     ${
-      isAdmin && (nextStatus || proposal.status === "in_review")
+      // Only shown alongside an actual admin action button below — otherwise it's a
+      // dead field with nothing to attach the note to.
+      adminHasAction
         ? `<div class="field" style="margin-top:16px">
              <label for="status-comment">Note to submitter (optional)</label>
              <textarea id="status-comment" placeholder="Explain what needs to change, or add context…"></textarea>
@@ -227,7 +218,9 @@ export async function renderProposalDetail(root, user, proposalId, navigate) {
         : ""
     }
     ${
-      (isAdmin || canSubmitDraft) && nextStatus
+      // Submitting/resubmitting is the owner's action; advancing past in_review is
+      // the admin's call — never show the other party a button for a step that isn't theirs.
+      (canOwnerSubmit || adminHasAction) && nextStatus
         ? `<button class="btn" id="advance-btn">${NEXT_STATUS_LABEL[proposal.status]}</button>`
         : ""
     }
@@ -241,32 +234,6 @@ export async function renderProposalDetail(root, user, proposalId, navigate) {
     <div id="edit-form-slot"></div>
 
     ${!isAdmin ? `<button class="btn btn-secondary" id="remind-btn" style="margin-top:12px">Remind Admin</button>` : ""}
-
-    <h2 style="margin-top:24px">Comments</h2>
-    <div id="comments-list">
-      ${
-        comments.length
-          ? comments
-              .map(
-                (c) => `
-        <div class="card">
-          <div style="display:flex; justify-content:space-between; font-size:12px; color:var(--text-muted); margin-bottom:4px;">
-            <span>${escapeHtml(c.author_name || "")}</span>
-            <span>${formatTimestamp(c.created_at)}</span>
-          </div>
-          <div style="white-space:pre-wrap;">${escapeHtml(c.body)}</div>
-        </div>`
-              )
-              .join("")
-          : `<p>No comments yet.</p>`
-      }
-    </div>
-    <form id="comment-form">
-      <div class="field">
-        <textarea id="comment-body" placeholder="Add a comment…" required></textarea>
-      </div>
-      <button type="submit" class="btn btn-secondary">Post Comment</button>
-    </form>
   `;
 
   renderDisposableSection(root.querySelector("#disposable-slot"), user, proposal);
@@ -280,13 +247,6 @@ export async function renderProposalDetail(root, user, proposalId, navigate) {
   });
   root.querySelector("#edit-btn")?.addEventListener("click", () => {
     renderEditForm(root.querySelector("#edit-form-slot"), proposal, navigate);
-  });
-  root.querySelector("#comment-form").addEventListener("submit", async (e) => {
-    e.preventDefault();
-    const body = root.querySelector("#comment-body").value.trim();
-    if (!body) return;
-    await api.post(`/api/proposals/${proposal.id}/comments`, { body });
-    renderProposalDetail(root, user, proposalId, navigate);
   });
   root.querySelector("#remind-btn")?.addEventListener("click", async (e) => {
     const message = window.prompt("What should the admin review?");

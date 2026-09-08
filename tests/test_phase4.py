@@ -23,8 +23,9 @@ def _register_and_approve(client, telegram_id, email):
 def test_email_draft_edit_and_send_advances_proposal(client, monkeypatch):
     client.post("/api/auth/register", json={"email": "admin@example.com"}, headers=auth_header(ADMIN))
     _register_and_approve(client, USER_A, "a@example.com")
+    # Submitting (not saving as draft) lands directly on in_review.
     proposal = client.post("/api/proposals", json={"title": "Movie Night"}, headers=auth_header(USER_A)).json()
-    client.patch(f"/api/proposals/{proposal['id']}", json={"status": "in_review"}, headers=auth_header(ADMIN))
+    assert proposal["status"] == "in_review"
 
     draft = client.get(f"/api/email/preview/{proposal['id']}", headers=auth_header(ADMIN))
     assert draft.status_code == 200
@@ -59,3 +60,10 @@ def test_reminder_inbox_and_read_state(client):
     assert client.get("/api/reminders/unread-count", headers=auth_header(ADMIN)).json() == {"count": 1}
     assert client.patch(f"/api/reminders/{reminder_id}/read", json={}, headers=auth_header(ADMIN)).status_code == 200
     assert client.get("/api/reminders/unread-count", headers=auth_header(ADMIN)).json() == {"count": 0}
+
+    # Non-admin can't delete.
+    assert client.delete(f"/api/reminders/{reminder_id}", headers=auth_header(USER_A)).status_code == 403
+
+    deleted = client.delete(f"/api/reminders/{reminder_id}", headers=auth_header(ADMIN))
+    assert deleted.status_code == 204
+    assert client.get("/api/reminders", headers=auth_header(ADMIN)).json() == []

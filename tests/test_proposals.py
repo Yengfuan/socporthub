@@ -68,7 +68,9 @@ def test_proposal_lifecycle_and_status_guardrails(client):
     )
     assert create.status_code == 201
     proposal_id = create.json()["id"]
-    assert create.json()["status"] == "needs_action"
+    # Submitting (not saving as draft) goes straight to in_review — needs_action is
+    # reached only when an admin sends it back, not a step every submission passes through.
+    assert create.json()["status"] == "in_review"
 
     # Illegal skip-ahead transition rejected.
     bad = client.patch(
@@ -78,24 +80,41 @@ def test_proposal_lifecycle_and_status_guardrails(client):
     )
     assert bad.status_code == 400
 
-    # Non-admin can't change status.
+    # Owner can't advance past in_review themselves — that's the admin's call.
     forbidden = client.patch(
         f"/api/proposals/{proposal_id}",
-        json={"status": "in_review"},
+        json={"status": "submitted"},
         headers=auth_header(USER_A),
     )
     assert forbidden.status_code == 403
 
-    # Legal transition by admin.
-    ok = client.patch(
+    # Admin sends it back for more detail.
+    sent_back = client.patch(
         f"/api/proposals/{proposal_id}",
-        json={"status": "in_review"},
+        json={"status": "needs_action", "comment": "Please add more detail"},
         headers=auth_header(ADMIN),
     )
-    assert ok.status_code == 200
-    assert ok.json()["status"] == "in_review"
+    assert sent_back.status_code == 200
+    assert sent_back.json()["status"] == "needs_action"
 
-    # Owner can no longer edit content once out of needs_action.
+    # Owner can edit again while needs_action.
+    edited = client.patch(
+        f"/api/proposals/{proposal_id}",
+        json={"title": "Movie Night (updated)"},
+        headers=auth_header(USER_A),
+    )
+    assert edited.status_code == 200
+
+    # Owner resubmits themselves — lands back on in_review.
+    resubmitted = client.patch(
+        f"/api/proposals/{proposal_id}",
+        json={"status": "in_review"},
+        headers=auth_header(USER_A),
+    )
+    assert resubmitted.status_code == 200
+    assert resubmitted.json()["status"] == "in_review"
+
+    # Owner can no longer edit content once back in in_review.
     edit_blocked = client.patch(
         f"/api/proposals/{proposal_id}",
         json={"title": "Hacked"},
@@ -114,8 +133,8 @@ def test_admin_can_clear_event_date_after_finished(client):
         headers=auth_header(USER_A),
     )
     proposal_id = create.json()["id"]
+    assert create.json()["status"] == "in_review"
 
-    client.patch(f"/api/proposals/{proposal_id}", json={"status": "in_review"}, headers=auth_header(ADMIN))
     client.patch(f"/api/proposals/{proposal_id}", json={"status": "submitted"}, headers=auth_header(ADMIN))
     finish = client.patch(f"/api/proposals/{proposal_id}", json={"status": "finished"}, headers=auth_header(ADMIN))
     assert finish.json()["event_date"] == "2026-10-01"
@@ -132,6 +151,34 @@ def test_admin_can_clear_event_date_after_finished(client):
     # title is NOT NULL at the DB level — clearing it is rejected, not a 500.
     title_clear = client.patch(f"/api/proposals/{proposal_id}", json={"title": None}, headers=auth_header(ADMIN))
     assert title_clear.status_code == 400
+
+
+def test_draft_submission_flow(client):
+    register(client, ADMIN, "admin@example.com")
+    _approve_user(client, USER_A, "a@example.com")
+
+    draft = client.post(
+        "/api/proposals",
+        json={"title": "Draft idea", "save_draft": True},
+        headers=auth_header(USER_A),
+    )
+    assert draft.status_code == 201
+    proposal_id = draft.json()["id"]
+    assert draft.json()["status"] == "draft"
+
+    # Admin's list still includes it server-side — the admin dashboard hides drafts
+    # client-side, but this endpoint has no reason to lie about what exists.
+    admin_list = client.get("/api/proposals", headers=auth_header(ADMIN)).json()
+    assert any(p["id"] == proposal_id for p in admin_list)
+
+    # Owner submits the draft themselves — lands on in_review, not needs_action.
+    submitted = client.patch(
+        f"/api/proposals/{proposal_id}",
+        json={"status": "in_review"},
+        headers=auth_header(USER_A),
+    )
+    assert submitted.status_code == 200
+    assert submitted.json()["status"] == "in_review"
 
 
 def test_committee_scoped_visibility(client):

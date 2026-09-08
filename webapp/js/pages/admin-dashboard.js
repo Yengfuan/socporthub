@@ -2,8 +2,9 @@ import { api } from "../api.js";
 import { statusBadge } from "../components/status-badge.js";
 import { proposalCard } from "../components/proposal-card.js";
 
+// No "draft" here — drafts are private to their owner until submitted, so admins
+// never need to see draft counts or draft proposals in their dashboard.
 const STATUS_LABELS = {
-  draft: "Drafts",
   needs_action: "Needs Action",
   in_review: "In Review",
   submitted: "Submitted",
@@ -107,10 +108,12 @@ async function renderDisposablesSection(content) {
 async function renderProposalsSection(content, committeeId = null) {
   const committees = await api.get("/api/committees");
   const query = committeeId ? `?committee_id=${committeeId}` : "";
-  const [summary, proposals] = await Promise.all([
+  const [summary, allProposals] = await Promise.all([
     api.get(`/api/proposals/summary${query}`),
     api.get(`/api/proposals${query}`),
   ]);
+  // Drafts are private to their owner until submitted — never show them to admins.
+  const proposals = allProposals.filter((p) => p.status !== "draft");
 
   content.innerHTML = `
     <div class="chip-row">
@@ -203,21 +206,25 @@ function userRow(user, committees, { pendingActions }) {
                <button class="btn btn-secondary" data-reject="${user.id}">Reject</button>
              </div>`
           : user.role !== "admin"
-          ? `<div style="margin-top:12px">
-               <div class="field-hint" style="margin-bottom:6px">Committees</div>
-               ${committees
-                 .map(
-                   (c) => `
-                 <label style="display:flex; align-items:center; gap:6px; font-size:13px; margin-bottom:4px;">
-                   <input type="checkbox" data-user="${user.id}" value="${c.id}" ${
-                     memberIds.has(c.id) ? "checked" : ""
-                   } />
-                   ${escapeHtml(c.name)}
-                 </label>`
-                 )
-                 .join("")}
-               <button class="btn btn-secondary" data-save-committees="${user.id}" style="margin-top:8px">Save Committees</button>
-             </div>`
+          ? `<details style="margin-top:12px">
+               <summary style="cursor:pointer; font-size:13px; color:var(--text-muted);">
+                 Committees: ${escapeHtml(user.committees.map((c) => c.name).join(", ") || "None assigned")}
+               </summary>
+               <div style="margin-top:8px">
+                 ${committees
+                   .map(
+                     (c) => `
+                   <label style="display:flex; align-items:center; gap:6px; font-size:13px; margin-bottom:4px;">
+                     <input type="checkbox" data-user="${user.id}" value="${c.id}" ${
+                       memberIds.has(c.id) ? "checked" : ""
+                     } />
+                     ${escapeHtml(c.name)}
+                   </label>`
+                   )
+                   .join("")}
+                 <button class="btn btn-secondary" data-save-committees="${user.id}" style="margin-top:8px">Save Committees</button>
+               </div>
+             </details>`
           : ""
       }
     </div>

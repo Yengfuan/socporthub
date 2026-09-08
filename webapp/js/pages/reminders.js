@@ -37,12 +37,29 @@ export async function renderReminders(root, user) {
       await renderReminders(root, user);
     });
   });
+  root.querySelectorAll("[data-delete-reminder]").forEach((button) => {
+    button.addEventListener("click", async () => {
+      if (!confirm("Delete this reminder?")) return;
+      await api.delete(`/api/reminders/${button.dataset.deleteReminder}`);
+      await renderReminders(root, user);
+    });
+  });
 }
 
 function reminderCard(reminder, isAdmin) {
   return `<div class="card ${reminder.is_read ? "reminder-read" : "reminder-unread"}">
-    <div class="meta"><span>${escapeHtml(reminder.sender_name || "")}</span><span>${new Date(reminder.created_at).toLocaleString()}</span></div>
+    <div style="display:flex; justify-content:space-between; align-items:baseline; gap:12px; margin-bottom:6px;">
+      <span style="font-weight:600; font-size:13px;">${escapeHtml(reminder.sender_name || "")}</span>
+      <span style="font-size:12px; color:var(--text-muted); white-space:nowrap;">${new Date(reminder.created_at).toLocaleString()}</span>
+    </div>
     <p style="color:var(--text); white-space:pre-wrap;">${escapeHtml(reminder.message)}</p>
-    ${isAdmin && !reminder.is_read ? `<button class="btn btn-secondary" data-mark-read="${reminder.id}">Mark as read</button>` : ""}
+    ${
+      isAdmin
+        ? `<div class="btn-row">
+             ${!reminder.is_read ? `<button class="btn btn-secondary" data-mark-read="${reminder.id}">Mark as read</button>` : ""}
+             <button class="btn btn-secondary" data-delete-reminder="${reminder.id}">Delete</button>
+           </div>`
+        : ""
+    }
   </div>`;
 }

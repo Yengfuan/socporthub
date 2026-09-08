@@ -74,3 +74,14 @@ def mark_read(reminder_id: int, db: Session = Depends(get_db), admin: User = Dep
     db.commit()
     db.refresh(reminder)
     return _out(reminder)
+
+
+@router.delete("/{reminder_id}", status_code=status.HTTP_204_NO_CONTENT)
+def delete_reminder(reminder_id: int, db: Session = Depends(get_db), admin: User = Depends(get_current_user)) -> None:
+    if admin.role != UserRole.admin:
+        raise HTTPException(status.HTTP_403_FORBIDDEN, "Admin access required")
+    reminder = db.get(Reminder, reminder_id)
+    if not reminder:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Reminder not found")
+    db.delete(reminder)
+    db.commit()

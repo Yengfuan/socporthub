@@ -111,7 +111,7 @@ async def create_proposal(
         doc_link=req.doc_link,
         blast_message=req.blast_message,
         event_date=req.event_date,
-        status=ProposalStatus.draft if req.save_draft else ProposalStatus.needs_action,
+        status=ProposalStatus.draft if req.save_draft else ProposalStatus.in_review,
     )
     db.add(proposal)
     db.commit()
@@ -151,8 +151,14 @@ async def update_proposal(
     is_owner = proposal.submitted_by == user.id
 
     if req.status is not None:
-        owner_submitting_draft = is_owner and proposal.status == ProposalStatus.draft and req.status == ProposalStatus.needs_action
-        if not is_admin and not owner_submitting_draft:
+        # Owner can submit a draft, and can resubmit after being sent back to
+        # needs_action — both land on in_review. Every other transition is admin-only.
+        owner_can_submit = (
+            is_owner
+            and proposal.status in (ProposalStatus.draft, ProposalStatus.needs_action)
+            and req.status == ProposalStatus.in_review
+        )
+        if not is_admin and not owner_can_submit:
             raise HTTPException(status.HTTP_403_FORBIDDEN, "Only admins can change status")
         allowed = PROPOSAL_STATUS_TRANSITIONS.get(proposal.status, set())
         if req.status not in allowed:
@@ -160,6 +166,7 @@ async def update_proposal(
                 status.HTTP_400_BAD_REQUEST,
                 f"Cannot move status from {proposal.status.value} to {req.status.value}",
             )
+        was_awaiting_review = proposal.status in (ProposalStatus.draft, ProposalStatus.needs_action)
         proposal.status = req.status
 
     content_fields = ("category", "title", "description", "doc_link", "blast_message", "event_date")
@@ -205,6 +212,11 @@ async def update_proposal(
 
     db.commit()
     db.refresh(proposal)
+
+    if req.status == ProposalStatus.in_review and was_awaiting_review:
+        # A fresh draft submission or a resubmission after needs_action both mean
+        # "there's something for an admin to review now" — same signal as a new proposal.
+        await notify_admins_new_proposal(proposal.title, proposal.submitter.display_name or proposal.submitter.email)
 
     if req.status is not None:
         await notify_user_status_change(
