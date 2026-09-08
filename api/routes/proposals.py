@@ -5,6 +5,7 @@ from api.auth import get_current_user
 from api.database import get_db
 from api.models import (
     PROPOSAL_STATUS_TRANSITIONS,
+    CalendarEvent,
     Proposal,
     ProposalComment,
     ProposalStatus,
@@ -166,6 +167,19 @@ async def update_proposal(
 
     if req.comment:
         db.add(ProposalComment(proposal_id=proposal.id, author_id=user.id, body=req.comment))
+
+    if req.status == ProposalStatus.finished and proposal.event_date is not None:
+        # Finished proposals graduate from a "proposal date" marker to a real, shared
+        # calendar entry — visible with the committee color and in the .ics feed.
+        db.add(
+            CalendarEvent(
+                committee_id=proposal.committee_id,
+                created_by=user.id,
+                title=proposal.title,
+                description=proposal.description,
+                event_date=proposal.event_date,
+            )
+        )
 
     db.commit()
     db.refresh(proposal)

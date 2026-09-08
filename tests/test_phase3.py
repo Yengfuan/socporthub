@@ -107,7 +107,7 @@ def test_calendar_event_create_and_list(client):
 
     create = client.post(
         "/api/calendar",
-        json={"title": "Orientation", "date": "2026-11-15", "committee_id": committees[0]["id"]},
+        json={"title": "Orientation", "event_date": "2026-11-15", "committee_id": committees[0]["id"]},
         headers=auth_header(ADMIN),
     )
     assert create.status_code == 201
@@ -116,7 +116,7 @@ def test_calendar_event_create_and_list(client):
     # Non-admin without a committee_id in the body defaults to their own committee.
     create_user = client.post(
         "/api/calendar",
-        json={"title": "Committee Meetup", "date": "2026-11-16"},
+        json={"title": "Committee Meetup", "event_date": "2026-11-16"},
         headers=auth_header(USER_A),
     )
     assert create_user.status_code == 201
@@ -128,7 +128,7 @@ def test_calendar_event_create_and_list(client):
 
     # Admin needs an explicit committee_id since they belong to none.
     missing_committee = client.post(
-        "/api/calendar", json={"title": "No committee", "date": "2026-11-17"}, headers=auth_header(ADMIN)
+        "/api/calendar", json={"title": "No committee", "event_date": "2026-11-17"}, headers=auth_header(ADMIN)
     )
     assert missing_committee.status_code == 400
 
@@ -138,7 +138,7 @@ def test_calendar_ics_feed(client):
     committees = client.get("/api/committees", headers=auth_header(ADMIN)).json()
     client.post(
         "/api/calendar",
-        json={"title": "Orientation", "date": "2026-11-15", "committee_id": committees[0]["id"]},
+        json={"title": "Orientation", "event_date": "2026-11-15", "committee_id": committees[0]["id"]},
         headers=auth_header(ADMIN),
     )
 
@@ -149,3 +149,68 @@ def test_calendar_ics_feed(client):
 
     feed_url = client.get("/api/calendar/feed-url", headers=auth_header(ADMIN)).json()["url"]
     assert feed_url.endswith("/api/calendar/feed.ics")
+
+
+def test_calendar_event_edit_and_delete_admin_only(client):
+    register(client, ADMIN, "admin@example.com")
+    _approve_user(client, USER_A, "a@example.com")
+    committees = client.get("/api/committees", headers=auth_header(ADMIN)).json()
+
+    event_id = client.post(
+        "/api/calendar",
+        json={"title": "Orientation", "event_date": "2026-11-15", "committee_id": committees[0]["id"]},
+        headers=auth_header(ADMIN),
+    ).json()["id"]
+
+    # Non-admin can't edit or delete.
+    forbidden_edit = client.patch(
+        f"/api/calendar/{event_id}", json={"title": "Hacked"}, headers=auth_header(USER_A)
+    )
+    assert forbidden_edit.status_code == 403
+    forbidden_delete = client.delete(f"/api/calendar/{event_id}", headers=auth_header(USER_A))
+    assert forbidden_delete.status_code == 403
+
+    edit = client.patch(
+        f"/api/calendar/{event_id}", json={"event_date": "2026-11-20"}, headers=auth_header(ADMIN)
+    )
+    assert edit.status_code == 200
+    assert edit.json()["date"] == "2026-11-20"
+
+    delete = client.delete(f"/api/calendar/{event_id}", headers=auth_header(ADMIN))
+    assert delete.status_code == 204
+
+    events = client.get(
+        "/api/calendar?start=2026-11-01&end=2026-11-30", headers=auth_header(ADMIN)
+    ).json()
+    assert events == []
+
+
+def test_finished_proposal_syncs_to_calendar(client):
+    register(client, ADMIN, "admin@example.com")
+    _approve_user(client, USER_A, "a@example.com")
+
+    proposal = client.post(
+        "/api/proposals",
+        json={"title": "Movie Night", "event_date": "2026-12-05"},
+        headers=auth_header(USER_A),
+    ).json()
+
+    # Not yet finished: no calendar event.
+    events = client.get(
+        "/api/calendar?start=2026-12-01&end=2026-12-31", headers=auth_header(ADMIN)
+    ).json()
+    assert events == []
+
+    client.patch(f"/api/proposals/{proposal['id']}", json={"status": "in_review"}, headers=auth_header(ADMIN))
+    client.patch(f"/api/proposals/{proposal['id']}", json={"status": "submitted"}, headers=auth_header(ADMIN))
+    finish = client.patch(
+        f"/api/proposals/{proposal['id']}", json={"status": "finished"}, headers=auth_header(ADMIN)
+    )
+    assert finish.status_code == 200
+
+    events = client.get(
+        "/api/calendar?start=2026-12-01&end=2026-12-31", headers=auth_header(ADMIN)
+    ).json()
+    assert len(events) == 1
+    assert events[0]["title"] == "Movie Night"
+    assert events[0]["date"] == "2026-12-05"

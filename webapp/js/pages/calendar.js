@@ -143,7 +143,9 @@ export async function renderCalendar(root, user, state = {}) {
       root.querySelector("#cal-day-panel"),
       selectedDate,
       eventsByDate.get(selectedDate) || [],
-      proposalDatesByDate.get(selectedDate) || []
+      proposalDatesByDate.get(selectedDate) || [],
+      user,
+      () => renderCalendar(root, user, { year, month, committeeId, selectedDate })
     );
   }
 }
@@ -186,7 +188,9 @@ function groupByDate(items, keyFn) {
   return map;
 }
 
-function renderDayPanel(panel, dateStr, events, proposals) {
+function renderDayPanel(panel, dateStr, events, proposals, user, refresh) {
+  const isAdmin = user.role === "admin";
+
   panel.innerHTML = `
     <h3>${dateStr}</h3>
     ${
@@ -194,12 +198,21 @@ function renderDayPanel(panel, dateStr, events, proposals) {
         ? events
             .map(
               (e) => `
-        <div class="card">
+        <div class="card" data-event-id="${e.id}">
           <div style="display:flex; justify-content:space-between; align-items:center;">
             <div class="title">${escapeHtml(e.title)}</div>
-            ${e.committee_name ? `<span class="badge" style="background:${e.committee_color}20; color:${e.committee_color}">${escapeHtml(e.committee_name)}</span>` : ""}
+            <span class="badge" style="background:${e.committee_color}20; color:${e.committee_color}">${escapeHtml(e.committee_name)}</span>
           </div>
           ${e.description ? `<p>${escapeHtml(e.description)}</p>` : ""}
+          ${
+            isAdmin
+              ? `<div class="btn-row" style="margin-top:8px">
+                   <button class="btn btn-secondary" style="width:auto; padding:6px 14px;" data-edit-event="${e.id}">Edit</button>
+                   <button class="btn btn-secondary" style="width:auto; padding:6px 14px;" data-delete-event="${e.id}">Delete</button>
+                 </div>
+                 <div class="edit-slot" data-edit-slot-for="${e.id}"></div>`
+              : ""
+          }
         </div>`
             )
             .join("")
@@ -220,6 +233,59 @@ function renderDayPanel(panel, dateStr, events, proposals) {
     }
     ${!events.length && !proposals.length ? `<p>Nothing scheduled this day.</p>` : ""}
   `;
+
+  if (!isAdmin) return;
+
+  panel.querySelectorAll("[data-edit-event]").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      const event = events.find((e) => e.id === Number(btn.dataset.editEvent));
+      renderEventEditForm(panel.querySelector(`[data-edit-slot-for="${event.id}"]`), event, refresh);
+    });
+  });
+  panel.querySelectorAll("[data-delete-event]").forEach((btn) => {
+    btn.addEventListener("click", async () => {
+      if (!confirm("Delete this event? This can't be undone.")) return;
+      btn.disabled = true;
+      await api.delete(`/api/calendar/${btn.dataset.deleteEvent}`);
+      refresh();
+    });
+  });
+}
+
+function renderEventEditForm(slot, event, refresh) {
+  slot.innerHTML = `
+    <form class="edit-event-form" style="margin-top:12px">
+      <div class="field">
+        <label>Title</label>
+        <input type="text" name="title" value="${escapeHtml(event.title)}" required />
+      </div>
+      <div class="field">
+        <label>Description</label>
+        <textarea name="description">${escapeHtml(event.description)}</textarea>
+      </div>
+      <div class="field">
+        <label>Date</label>
+        <input type="date" name="date" value="${event.date}" required />
+      </div>
+      <div id="edit-event-error"></div>
+      <button type="submit" class="btn">Save Changes</button>
+    </form>
+  `;
+
+  slot.querySelector(".edit-event-form").addEventListener("submit", async (e) => {
+    e.preventDefault();
+    const errorEl = slot.querySelector("#edit-event-error");
+    try {
+      await api.patch(`/api/calendar/${event.id}`, {
+        title: e.target.title.value.trim(),
+        description: e.target.description.value.trim() || null,
+        event_date: e.target.date.value,
+      });
+      refresh();
+    } catch (err) {
+      errorEl.innerHTML = `<div class="error-banner">${err.message}</div>`;
+    }
+  });
 }
 
 function renderEventForm(panel, user, committees, selectedDate, onSaved) {
@@ -261,7 +327,7 @@ function renderEventForm(panel, user, committees, selectedDate, onSaved) {
       await api.post("/api/calendar", {
         title: panel.querySelector("#ev-title").value.trim(),
         description: panel.querySelector("#ev-description").value.trim() || null,
-        date: panel.querySelector("#ev-date").value,
+        event_date: panel.querySelector("#ev-date").value,
         committee_id: isAdmin ? Number(panel.querySelector("#ev-committee").value) : null,
       });
       onSaved();

@@ -149,8 +149,14 @@ class DisposableRequestOut(BaseModel):
 class CalendarEventCreate(BaseModel):
     title: str
     description: str | None = None
-    date: date
+    event_date: date
     committee_id: int | None = None  # required for admins, who have no committee of their own
+
+
+class CalendarEventUpdate(BaseModel):
+    title: str | None = None
+    description: str | None = None
+    event_date: date | None = None
 
 
 class CalendarEventOut(BaseModel):

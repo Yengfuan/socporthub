@@ -7,7 +7,7 @@ from api.auth import get_current_user
 from api.config import get_settings
 from api.database import get_db
 from api.models import CalendarEvent, Committee, User, UserRole
-from api.schemas import CalendarEventCreate, CalendarEventOut, CalendarFeedUrlOut
+from api.schemas import CalendarEventCreate, CalendarEventOut, CalendarEventUpdate, CalendarFeedUrlOut
 
 router = APIRouter(prefix="/api/calendar", tags=["calendar"])
 
@@ -81,12 +81,51 @@ def add_event(
         created_by=user.id,
         title=req.title,
         description=req.description,
-        event_date=req.date,
+        event_date=req.event_date,
     )
     db.add(event)
     db.commit()
     db.refresh(event)
     return _to_out(event)
+
+
+def _get_admin_event(db: Session, admin: User, event_id: int) -> CalendarEvent:
+    if admin.role != UserRole.admin:
+        raise HTTPException(status.HTTP_403_FORBIDDEN, "Admin access required")
+    event = db.get(CalendarEvent, event_id)
+    if not event:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Event not found")
+    return event
+
+
+@router.patch("/{event_id}", response_model=CalendarEventOut)
+def update_event(
+    event_id: int,
+    req: CalendarEventUpdate,
+    db: Session = Depends(get_db),
+    admin: User = Depends(get_current_user),
+) -> CalendarEventOut:
+    event = _get_admin_event(db, admin, event_id)
+    if req.title is not None:
+        event.title = req.title
+    if req.description is not None:
+        event.description = req.description
+    if req.event_date is not None:
+        event.event_date = req.event_date
+    db.commit()
+    db.refresh(event)
+    return _to_out(event)
+
+
+@router.delete("/{event_id}", status_code=status.HTTP_204_NO_CONTENT)
+def delete_event(
+    event_id: int,
+    db: Session = Depends(get_db),
+    admin: User = Depends(get_current_user),
+) -> None:
+    event = _get_admin_event(db, admin, event_id)
+    db.delete(event)
+    db.commit()
 
 
 def _escape_ics_text(value: str) -> str:

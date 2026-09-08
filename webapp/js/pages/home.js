@@ -8,6 +8,12 @@ const STATUS_LABELS = {
   finished: "Finished",
 };
 
+function escapeHtml(s) {
+  const div = document.createElement("div");
+  div.textContent = s ?? "";
+  return div.innerHTML;
+}
+
 export async function renderHome(root, user) {
   root.innerHTML = `<div class="loading">Loading…</div>`;
 
@@ -16,9 +22,16 @@ export async function renderHome(root, user) {
     api.get("/api/proposals"),
   ]);
 
+  const committeeNames = escapeHtml((user.committees || []).map((c) => c.name).join(", ") || "No committee assigned yet");
+
   root.innerHTML = `
     <div class="page-header">
-      <h1>Hi, ${user.display_name || user.email}</h1>
+      <h1>Hi, ${escapeHtml(user.display_name || user.email)}</h1>
+    </div>
+
+    <div class="card" style="padding:10px 16px; display:flex; align-items:center; gap:8px;">
+      <span style="font-size:12px; color:var(--text-muted);">Committee</span>
+      <span style="font-size:13px; font-weight:600;">${committeeNames}</span>
     </div>
 
     <div class="summary-grid">
