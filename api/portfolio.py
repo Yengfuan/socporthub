@@ -7,7 +7,7 @@ WELFARE_COMMITTEE_NAMES = {
     "Welfare Comm",
     "HeaRHtfelt",
     "Green Commm",
-    "Bakers And Cooks",
+    "BakeRHs and Cooks",
     "Children",
     "Pioneers",
     "Special Projects",
