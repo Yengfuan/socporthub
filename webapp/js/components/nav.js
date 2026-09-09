@@ -2,6 +2,7 @@ const TABS = [
   { route: "home", label: "Home" },
   { route: "calendar", label: "Calendar" },
   { route: "reminders", label: "Reminders" },
+  { route: "bug-report", label: "Bug Report" },
 ];
 
 export function renderBottomNav(activeRoute, reminderCount = 0) {

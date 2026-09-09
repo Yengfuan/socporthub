@@ -5,7 +5,7 @@ from html import escape
 
 from api.config import get_settings
 from api.services.telegram import send_message
-from api.models import Portfolio
+from api.models import Portfolio, User
 
 
 def _admin_ids(portfolio: Portfolio | None = None) -> set[int]:
@@ -21,6 +21,20 @@ async def notify_admins_new_registration(display_name: str | None, email: str) -
     settings = get_settings()
     text = f"\U0001f4dd New registration pending approval: <b>{display_name or email}</b> ({email})"
     for admin_id in _admin_ids():
+        await send_message(admin_id, text)
+
+
+async def notify_admins_bug_report(user: User, message: str) -> None:
+    """Bug reports intentionally go to the legacy ADMIN_TELEGRAM_IDS list."""
+    text = (
+        "🐛 <b>New bug report</b>\n\n"
+        f"From: {escape(user.display_name or user.email)}\n"
+        f"Email: {escape(user.email)}\n"
+        f"Telegram ID: <code>{user.telegram_id}</code>\n\n"
+        f"{escape(message)}"
+    )
+    settings = get_settings()
+    for admin_id in settings.admin_telegram_id_set:
         await send_message(admin_id, text)
 
 

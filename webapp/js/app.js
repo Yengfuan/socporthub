@@ -5,6 +5,7 @@ import { renderNewProposal, renderProposalDetail } from "./pages/proposal-detail
 import { renderAdminDashboard } from "./pages/admin-dashboard.js";
 import { renderCalendar } from "./pages/calendar.js";
 import { renderReminders } from "./pages/reminders.js";
+import { renderBugReport } from "./pages/bug-report.js";
 import { renderBottomNav } from "./components/nav.js";
 
 const tg = window.Telegram?.WebApp;
@@ -14,7 +15,7 @@ tg?.expand();
 const app = document.getElementById("app");
 let currentUser = null;
 
-const TOP_LEVEL_ROUTES = new Set(["home", "admin", "calendar", "reminders"]);
+const TOP_LEVEL_ROUTES = new Set(["home", "admin", "calendar", "reminders", "bug-report"]);
 
 function navigate(route) {
   window.location.hash = route;
@@ -85,6 +86,8 @@ async function render() {
       await renderCalendar(page, currentUser);
     } else if (route === "reminders") {
       await renderReminders(page, currentUser);
+    } else if (route === "bug-report") {
+      renderBugReport(page);
     } else if (route === "proposal/new") {
       renderNewProposal(page, navigate);
     } else if (route.startsWith("proposal/")) {

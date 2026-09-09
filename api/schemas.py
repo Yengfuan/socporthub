@@ -18,6 +18,10 @@ class RegisterRequest(BaseModel):
     display_name: str | None = None
 
 
+class BugReportCreate(BaseModel):
+    message: str
+
+
 # --- Users ---
 
 

@@ -4,7 +4,7 @@ import asyncio
 from fastapi import FastAPI
 from fastapi.staticfiles import StaticFiles
 
-from api.routes import auth, calendar, committees, disposables, email, proposals, reminders, telegram_webhook, users
+from api.routes import auth, bug_reports, calendar, committees, disposables, email, proposals, reminders, telegram_webhook, users
 
 logging.basicConfig(level=logging.INFO)
 
@@ -27,6 +27,7 @@ async def stop_scheduled_notifications() -> None:
         collection_reminder_task.cancel()
 
 app.include_router(auth.router)
+app.include_router(bug_reports.router)
 app.include_router(users.router)
 app.include_router(committees.router)
 app.include_router(proposals.router)
