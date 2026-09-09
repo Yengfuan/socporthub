@@ -26,6 +26,7 @@ RF_CONTACTS = {
     "Block 8": ("Mr Leo", "leo.lee@nus.edu.sg"),
     "Intl Comm": ("Ms Linda", "lindacheng@nus.edu.sg"),
     "Soccom": ("Ms Linda", "lindacheng@nus.edu.sg"),
+    "Social D": ("Ms Linda", "lindacheng@nus.edu.sg"),
 }
 
 
@@ -44,8 +45,6 @@ def upgrade() -> None:
             .where(committees.c.name == name)
             .values(rf_name=rf_name, rf_email=rf_email)
         )
-    # Social D is seeded by migration 0002, but its RF contact has not been
-    # supplied yet. Keep these columns nullable until that contact is provided.
 
 
 def downgrade() -> None:
