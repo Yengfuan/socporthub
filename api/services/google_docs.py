@@ -10,6 +10,13 @@ from fastapi import HTTPException, status
 GOOGLE_DOC_RE = re.compile(r"^/document/d/([A-Za-z0-9_-]+)(?:/|$)")
 
 
+def proposal_pdf_filename(event_name: str, committee_name: str) -> str:
+    """Return a safe, human-readable filename for an emailed proposal PDF."""
+    filename = re.sub(r"[^A-Za-z0-9._ -]+", "", f"{event_name}_{committee_name}")
+    filename = re.sub(r"\s+", " ", filename).strip(" ._")
+    return f"{filename or 'proposal'}.pdf"
+
+
 async def download_google_doc_pdf(link: str) -> tuple[str, bytes]:
     parsed = urlparse(link)
     if parsed.scheme != "https" or parsed.netloc.lower() not in {"docs.google.com", "www.docs.google.com"}:

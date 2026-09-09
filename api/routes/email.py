@@ -8,7 +8,7 @@ from api.database import get_db
 from api.models import EmailDraft, Proposal, ProposalStatus, User, UserRole
 from api.schemas import EmailDraftOut, EmailDraftUpdate
 from api.services.resend_email import send_email
-from api.services.google_docs import download_google_doc_pdf
+from api.services.google_docs import download_google_doc_pdf, proposal_pdf_filename
 from api.config import get_settings
 from bot.notifications import notify_user_email_sent
 
@@ -132,7 +132,8 @@ async def send_proposal_email(
         db.refresh(draft)
     attachment = None
     if proposal.doc_link:
-        attachment = await download_google_doc_pdf(proposal.doc_link)
+        _, pdf = await download_google_doc_pdf(proposal.doc_link)
+        attachment = (proposal_pdf_filename(proposal.title, proposal.committee.name), pdf)
     await send_email(
         to=draft.recipient,
         subject=draft.subject,

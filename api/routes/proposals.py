@@ -27,7 +27,7 @@ from bot.notifications import (
 )
 from api.routes.email import _generated, _without_links
 from api.config import get_settings
-from api.services.google_docs import download_google_doc_pdf
+from api.services.google_docs import download_google_doc_pdf, proposal_pdf_filename
 from api.services.resend_email import send_email
 
 router = APIRouter(prefix="/api/proposals", tags=["proposals"])
@@ -269,8 +269,8 @@ async def update_proposal(
             subject, body = _generated(proposal)
         attachment = None
         if proposal.doc_link:
-            filename, pdf = await download_google_doc_pdf(proposal.doc_link)
-            attachment = (filename, pdf)
+            _, pdf = await download_google_doc_pdf(proposal.doc_link)
+            attachment = (proposal_pdf_filename(proposal.title, proposal.committee.name), pdf)
         await send_email(
             to=proposal.submitter.email,
             subject=_without_links(subject),
