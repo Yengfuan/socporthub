@@ -171,12 +171,14 @@ export function renderNewProposal(root, navigate) {
         event_date: e.target.event_date.value || null,
         doc_link: e.target.doc_link.value.trim() || null,
         blast_message: e.target.blast_message.value.trim() || null,
+        save_draft: true,
       });
       if (poster) {
         const formData = new FormData();
         formData.append("poster", poster);
         await api.upload(`/api/proposals/${proposal.id}/poster`, formData);
       }
+      await api.patch(`/api/proposals/${proposal.id}`, { status: "in_review" });
       navigate(`proposal/${proposal.id}`);
     } catch (err) {
       errorEl.innerHTML = `<div class="error-banner">${err.message}</div>`;
