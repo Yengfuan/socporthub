@@ -160,7 +160,7 @@ async function renderProposalsSection(content, committeeId = null, statusFilter 
 async function renderUsersSection(content) {
   const [users, committees] = await Promise.all([
     api.get("/api/admin/users"),
-    api.get("/api/committees"),
+    api.get("/api/committees?all_committees=true"),
   ]);
 
   const pending = users.filter((u) => u.status === "pending");

@@ -5,7 +5,8 @@ from sqlalchemy.orm import Session
 
 from api.auth import get_current_admin, get_current_user
 from api.database import get_db
-from api.models import EmailDraft, Proposal, ProposalCategory, ProposalStatus, User, UserRole
+from api.models import EmailDraft, Proposal, ProposalStatus, User, UserRole
+from api.portfolio import sends_confirmation_email
 from api.schemas import EmailDraftOut, EmailDraftUpdate
 from api.services.resend_email import send_email
 from api.services.google_docs import download_google_doc_pdf, proposal_pdf_filename
@@ -39,8 +40,8 @@ def _proposal(db: Session, proposal_id: int, user: User) -> Proposal:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "Proposal not found")
     if proposal.status != ProposalStatus.in_review:
         raise HTTPException(status.HTTP_400_BAD_REQUEST, "Email can only be prepared for an in-review proposal")
-    if proposal.category != ProposalCategory.event:
-        raise HTTPException(status.HTTP_400_BAD_REQUEST, "Confirmation emails are only sent for event proposals")
+    if not sends_confirmation_email(proposal.committee, proposal.category):
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, "Confirmation emails are not enabled for this proposal")
     return proposal
 
 

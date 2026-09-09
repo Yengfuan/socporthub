@@ -53,6 +53,11 @@ class ReminderTargetType(str, enum.Enum):
     general = "general"
 
 
+class Portfolio(str, enum.Enum):
+    social = "social"
+    welfare = "welfare"
+
+
 # Server-side allowed forward transitions for proposal status.
 # needs_action is reached only when an admin sends an in-review proposal back — it is
 # not a step every submission passes through. A submission (from draft, or fresh) goes
@@ -72,6 +77,7 @@ class Committee(Base):
     id: Mapped[int] = mapped_column(primary_key=True)
     name: Mapped[str] = mapped_column(String(100), unique=True, nullable=False)
     color: Mapped[str] = mapped_column(String(7), nullable=False)
+    portfolio: Mapped[Portfolio | None] = mapped_column(Enum(Portfolio, native_enum=False), nullable=True)
     # Nullable in the ORM so lightweight test/dev databases created from metadata
     # remain compatible; migration 0008 makes these required in PostgreSQL.
     rf_name: Mapped[str | None] = mapped_column(String(255), nullable=True)

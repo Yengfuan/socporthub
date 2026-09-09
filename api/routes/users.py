@@ -19,7 +19,7 @@ def _to_user_out(user: User) -> UserOut:
 @router.get("", response_model=list[UserOut])
 def list_users(
     db: Session = Depends(get_db),
-    _admin: User = Depends(get_current_admin),
+    admin: User = Depends(get_current_admin),
 ) -> list[UserOut]:
     users = db.query(User).order_by(User.created_at.desc()).all()
     return [_to_user_out(u) for u in users]

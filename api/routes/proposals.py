@@ -7,12 +7,14 @@ from api.database import get_db
 from api.models import (
     PROPOSAL_STATUS_TRANSITIONS,
     CalendarEvent,
+    Committee,
     Proposal, EmailDraft,
     ProposalComment,
     ProposalCategory, ProposalStatus,
     User,
     UserRole,
 )
+from api.portfolio import admin_committee_filter, committee_portfolio, sends_confirmation_email as should_send_confirmation_email
 from api.schemas import (
     ProposalCommentCreate,
     ProposalCommentOut,
@@ -37,6 +39,7 @@ def _to_out(p: Proposal) -> ProposalOut:
         id=p.id,
         committee_id=p.committee_id,
         committee_name=p.committee.name,
+        portfolio=committee_portfolio(p.committee),
         submitted_by=p.submitted_by,
         submitter_name=p.submitter.display_name,
         title=p.title,
@@ -60,6 +63,8 @@ def _visible_query(db: Session, user: User):
         if not committee_ids:
             return query.filter(False)
         query = query.filter(Proposal.committee_id.in_(committee_ids))
+    else:
+        query = query.join(Proposal.committee).filter(admin_committee_filter(user))
     return query
 
 
@@ -155,7 +160,11 @@ async def create_proposal(
     db.refresh(proposal)
 
     if not req.save_draft:
-        await notify_admins_new_proposal(proposal.title, user.display_name or user.email)
+        await notify_admins_new_proposal(
+            proposal.title,
+            user.display_name or user.email,
+            committee_portfolio(proposal.committee),
+        )
 
     return _to_out(proposal)
 
@@ -203,7 +212,9 @@ async def update_proposal(
                 status.HTTP_400_BAD_REQUEST,
                 f"Cannot move status from {proposal.status.value} to {req.status.value}",
             )
-        if req.status == ProposalStatus.finished and proposal.category == ProposalCategory.event:
+        if req.status == ProposalStatus.finished and should_send_confirmation_email(
+            proposal.committee, proposal.category
+        ):
             raise HTTPException(
                 status.HTTP_400_BAD_REQUEST,
                 "Event proposals must be approved through the email workflow",
@@ -256,7 +267,9 @@ async def update_proposal(
     # Approval has an external side effect (PDF export + email). Keep the status
     # change pending until that side effect succeeds, so a failed email does not
     # falsely tell the admin that the proposal was submitted.
-    sends_confirmation_email = req.status == ProposalStatus.submitted and proposal.category == ProposalCategory.event
+    sends_confirmation_email = req.status == ProposalStatus.submitted and should_send_confirmation_email(
+        proposal.committee, proposal.category
+    )
     if not sends_confirmation_email:
         db.commit()
         db.refresh(proposal)
@@ -264,7 +277,11 @@ async def update_proposal(
     if req.status == ProposalStatus.in_review and was_awaiting_review:
         # A fresh draft submission or a resubmission after needs_action both mean
         # "there's something for an admin to review now" — same signal as a new proposal.
-        await notify_admins_new_proposal(proposal.title, proposal.submitter.display_name or proposal.submitter.email)
+        await notify_admins_new_proposal(
+            proposal.title,
+            proposal.submitter.display_name or proposal.submitter.email,
+            committee_portfolio(proposal.committee),
+        )
 
     if sends_confirmation_email:
         draft = db.query(EmailDraft).filter(EmailDraft.proposal_id == proposal.id).first()

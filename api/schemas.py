@@ -2,7 +2,7 @@ from datetime import date, datetime
 
 from pydantic import BaseModel, ConfigDict, EmailStr
 
-from api.models import ProposalCategory, ProposalStatus, ReminderTargetType, UserRole, UserStatus
+from api.models import Portfolio, ProposalCategory, ProposalStatus, ReminderTargetType, UserRole, UserStatus
 
 
 # --- Auth ---
@@ -27,6 +27,7 @@ class CommitteeOut(BaseModel):
     id: int
     name: str
     color: str
+    portfolio: Portfolio | None = None
     rf_name: str | None = None
     rf_email: EmailStr | None = None
 
@@ -82,6 +83,7 @@ class ProposalOut(BaseModel):
     id: int
     committee_id: int
     committee_name: str
+    portfolio: Portfolio
     submitted_by: int
     submitter_name: str | None
     title: str

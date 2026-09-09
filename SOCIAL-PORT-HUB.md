@@ -551,7 +551,16 @@ SECRET_KEY=                   # For session/HMAC
 - [x] For Pantry Cleaning, no poster or link/PDF is required
 - [x] For Merch, a poster and link/PDF URL are required; description, event date, and blast message are optional
 
-### Phase 6 — AI Reviewer [DEFERRED]
+### Phase 6 — Portfolio Separation
+- [x] Add Social and Welfare portfolio ownership to committees
+- [x] Add separate portfolio-specific admin access and Telegram notifications
+- [x] Scope proposal, disposable, reminder, calendar, and committee views by admin portfolio
+- [x] Support Welfare event and initiative email workflows
+- [x] Keep Social initiative proposals from triggering automatic emails
+- [x] Allow admins to approve users and assign committees across portfolios
+- [ ] Add the Welfare Director's Telegram ID in Railway
+
+### Phase 7 — AI Reviewer [DEFERRED]
 - [ ] Google Docs API read access
 - [ ] LLM integration for proposal review
 - [ ] Comment suggestion UI for admin vetting

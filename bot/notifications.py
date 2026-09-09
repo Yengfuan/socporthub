@@ -5,12 +5,22 @@ from html import escape
 
 from api.config import get_settings
 from api.services.telegram import send_message
+from api.models import Portfolio
+
+
+def _admin_ids(portfolio: Portfolio | None = None) -> set[int]:
+    settings = get_settings()
+    if portfolio == Portfolio.welfare:
+        return settings.welfare_admin_telegram_id_set
+    if portfolio == Portfolio.social:
+        return settings.social_admin_telegram_id_set
+    return settings.all_admin_telegram_id_set
 
 
 async def notify_admins_new_registration(display_name: str | None, email: str) -> None:
     settings = get_settings()
     text = f"\U0001f4dd New registration pending approval: <b>{display_name or email}</b> ({email})"
-    for admin_id in settings.admin_telegram_id_set:
+    for admin_id in _admin_ids():
         await send_message(admin_id, text)
 
 
@@ -28,10 +38,9 @@ async def notify_user_registration_rejected(telegram_id: int) -> None:
     )
 
 
-async def notify_admins_new_proposal(proposal_title: str, submitter_name: str) -> None:
-    settings = get_settings()
+async def notify_admins_new_proposal(proposal_title: str, submitter_name: str, portfolio: Portfolio) -> None:
     text = f"\U0001f4cb New proposal <b>{proposal_title}</b> submitted by {submitter_name}"
-    for admin_id in settings.admin_telegram_id_set:
+    for admin_id in _admin_ids(portfolio):
         await send_message(admin_id, text)
 
 
@@ -44,10 +53,11 @@ async def notify_user_status_change(
     await send_message(telegram_id, text)
 
 
-async def notify_admins_new_disposable_request(proposal_title: str, requester_name: str) -> None:
-    settings = get_settings()
+async def notify_admins_new_disposable_request(
+    proposal_title: str, requester_name: str, portfolio: Portfolio
+) -> None:
     text = f"\U0001f37d New disposables request for <b>{proposal_title}</b> from {requester_name}"
-    for admin_id in settings.admin_telegram_id_set:
+    for admin_id in _admin_ids(portfolio):
         await send_message(admin_id, text)
 
 
@@ -65,17 +75,17 @@ async def notify_user_email_sent(telegram_id: int, proposal_title: str) -> None:
     )
 
 
-async def notify_admins_reminder(sender_name: str, message: str) -> None:
-    settings = get_settings()
+async def notify_admins_reminder(sender_name: str, message: str, portfolio: Portfolio | None = None) -> None:
     text = f"🔔 Reminder from <b>{escape(sender_name)}</b>\n\n{escape(message)}"
-    for admin_id in settings.admin_telegram_id_set:
+    for admin_id in _admin_ids(portfolio):
         await send_message(admin_id, text)
 
 
-async def notify_admins_todays_collections(collections: list[tuple[str, str, str]]) -> None:
-    settings = get_settings()
+async def notify_admins_todays_collections(
+    collections: list[tuple[str, str, str]], portfolio: Portfolio
+) -> None:
     if not collections:
         return
     lines = [f"• {title} ({committee}) — {when}" for title, committee, when in collections]
-    for admin_id in settings.admin_telegram_id_set:
+    for admin_id in _admin_ids(portfolio):
         await send_message(admin_id, "🌅 <b>Today's disposable collections</b>\n" + "\n".join(lines))

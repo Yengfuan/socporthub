@@ -48,7 +48,7 @@ async def register(
         raise HTTPException(status.HTTP_409_CONFLICT, "Email already in use")
 
     settings = get_settings()
-    is_admin = identity.telegram_id in settings.admin_telegram_id_set
+    is_admin = identity.telegram_id in settings.all_admin_telegram_id_set
 
     display_name = req.display_name or " ".join(
         part for part in [identity.first_name, identity.last_name] if part

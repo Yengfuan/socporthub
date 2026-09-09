@@ -4,10 +4,23 @@ from sqlalchemy.orm import Session
 from api.auth import get_current_user
 from api.database import get_db
 from api.models import DisposableRequest, Proposal, Reminder, ReminderTargetType, User, UserRole
+from api.portfolio import admin_can_access_committee, committee_portfolio
 from api.schemas import ReminderCreate, ReminderOut, ReminderUnreadCount
 from bot.notifications import notify_admins_reminder
 
 router = APIRouter(prefix="/api/reminders", tags=["reminders"])
+
+
+def _admin_can_see_reminder(db: Session, reminder: Reminder, admin: User) -> bool:
+    if admin.role != UserRole.admin:
+        return False
+    if reminder.target_type == ReminderTargetType.proposal and reminder.target_id:
+        proposal = db.get(Proposal, reminder.target_id)
+        return bool(proposal and admin_can_access_committee(admin, proposal.committee))
+    if reminder.target_type == ReminderTargetType.disposable and reminder.target_id:
+        disposable = db.get(DisposableRequest, reminder.target_id)
+        return bool(disposable and admin_can_access_committee(admin, disposable.proposal.committee))
+    return any(admin_can_access_committee(admin, m.committee) for m in reminder.sender.committee_memberships)
 
 
 def _out(reminder: Reminder) -> ReminderOut:
@@ -44,23 +57,31 @@ async def create_reminder(req: ReminderCreate, db: Session = Depends(get_db), us
     db.add(reminder)
     db.commit()
     db.refresh(reminder)
-    await notify_admins_reminder(user.display_name or user.email, reminder.message)
+    portfolio = None
+    if req.target_type == ReminderTargetType.proposal and proposal:
+        portfolio = committee_portfolio(proposal.committee)
+    elif user.committee_memberships:
+        portfolio = committee_portfolio(user.committee_memberships[0].committee)
+    await notify_admins_reminder(user.display_name or user.email, reminder.message, portfolio)
     return _out(reminder)
 
 
 @router.get("", response_model=list[ReminderOut])
 def list_reminders(db: Session = Depends(get_db), user: User = Depends(get_current_user)) -> list[ReminderOut]:
-    query = db.query(Reminder)
+    reminders = db.query(Reminder).order_by(Reminder.created_at.desc()).all()
     if user.role != UserRole.admin:
-        query = query.filter(Reminder.from_user == user.id)
-    return [_out(r) for r in query.order_by(Reminder.created_at.desc()).all()]
+        reminders = [r for r in reminders if r.from_user == user.id]
+    else:
+        reminders = [r for r in reminders if _admin_can_see_reminder(db, r, user)]
+    return [_out(r) for r in reminders]
 
 
 @router.get("/unread-count", response_model=ReminderUnreadCount)
 def unread_count(db: Session = Depends(get_db), admin: User = Depends(get_current_user)) -> ReminderUnreadCount:
     if admin.role != UserRole.admin:
         raise HTTPException(status.HTTP_403_FORBIDDEN, "Admin access required")
-    return ReminderUnreadCount(count=db.query(Reminder).filter(Reminder.is_read.is_(False)).count())
+    reminders = db.query(Reminder).filter(Reminder.is_read.is_(False)).all()
+    return ReminderUnreadCount(count=sum(_admin_can_see_reminder(db, r, admin) for r in reminders))
 
 
 @router.patch("/{reminder_id}/read", response_model=ReminderOut)
@@ -69,6 +90,8 @@ def mark_read(reminder_id: int, db: Session = Depends(get_db), admin: User = Dep
         raise HTTPException(status.HTTP_403_FORBIDDEN, "Admin access required")
     reminder = db.get(Reminder, reminder_id)
     if not reminder:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Reminder not found")
+    if not _admin_can_see_reminder(db, reminder, admin):
         raise HTTPException(status.HTTP_404_NOT_FOUND, "Reminder not found")
     reminder.is_read = True
     db.commit()

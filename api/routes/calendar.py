@@ -7,6 +7,7 @@ from api.auth import get_current_user
 from api.config import get_settings
 from api.database import get_db
 from api.models import CalendarEvent, Committee, User, UserRole
+from api.portfolio import admin_can_access_committee, admin_committee_filter
 from api.schemas import CalendarEventCreate, CalendarEventOut, CalendarEventUpdate, CalendarFeedUrlOut
 
 router = APIRouter(prefix="/api/calendar", tags=["calendar"])
@@ -42,7 +43,7 @@ def get_events(
     end: date | None = None,
     committee_id: int | None = None,
     db: Session = Depends(get_db),
-    _user: User = Depends(get_current_user),
+    user: User = Depends(get_current_user),
 ) -> list[CalendarEventOut]:
     today = date.today()
     time_min = start or (today.replace(day=1) - timedelta(days=31))
@@ -53,6 +54,8 @@ def get_events(
     )
     if committee_id is not None:
         query = query.filter(CalendarEvent.committee_id == committee_id)
+    if user.role == UserRole.admin:
+        query = query.join(CalendarEvent.committee).filter(admin_committee_filter(user))
 
     return [_to_out(e) for e in query.order_by(CalendarEvent.event_date).all()]
 
@@ -75,6 +78,8 @@ def add_event(
     committee = db.get(Committee, committee_id)
     if not committee:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "Committee not found")
+    if user.role == UserRole.admin and not admin_can_access_committee(user, committee):
+        raise HTTPException(status.HTTP_403_FORBIDDEN, "Committee is outside your portfolio")
 
     event = CalendarEvent(
         committee_id=committee.id,
@@ -95,6 +100,8 @@ def _get_admin_event(db: Session, admin: User, event_id: int) -> CalendarEvent:
     event = db.get(CalendarEvent, event_id)
     if not event:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "Event not found")
+    if not admin_can_access_committee(admin, event.committee):
+        raise HTTPException(status.HTTP_403_FORBIDDEN, "Event is outside your portfolio")
     return event
 
 
@@ -133,7 +140,10 @@ def _escape_ics_text(value: str) -> str:
 
 
 @router.get("/feed.ics")
-def calendar_feed(token: str | None = None, db: Session = Depends(get_db)) -> Response:
+def calendar_feed(
+    token: str | None = None,
+    db: Session = Depends(get_db),
+) -> Response:
     """Public iCalendar feed for subscribing from Google/Apple/Outlook calendar apps.
 
     No Telegram auth here — calendar apps can't send our custom header — so this is

@@ -195,7 +195,9 @@ export async function renderProposalDetail(root, user, proposalId, navigate) {
   const isAdmin = user.role === "admin";
   const isOwner = proposal.submitted_by === user.id;
   const canEdit = isOwner && ["draft", "needs_action"].includes(proposal.status);
-  const nextStatus = proposal.status === "in_review" && proposal.category !== "event"
+  const usesEmailWorkflow = proposal.category === "event" ||
+    (proposal.category === "initiative" && proposal.portfolio === "welfare");
+  const nextStatus = proposal.status === "in_review" && !usesEmailWorkflow
     ? "finished"
     : NEXT_STATUS[proposal.status];
   const nextStatusLabel = nextStatus === "finished" && proposal.status === "in_review"
@@ -260,7 +262,7 @@ export async function renderProposalDetail(root, user, proposalId, navigate) {
     ${
       // Submitting/resubmitting is the owner's action; advancing past in_review is
       // the admin's call — never show the other party a button for a step that isn't theirs.
-      (canOwnerSubmit || (adminHasAction && (proposal.status !== "in_review" || proposal.category !== "event"))) && nextStatus
+      (canOwnerSubmit || (adminHasAction && (proposal.status !== "in_review" || !usesEmailWorkflow))) && nextStatus
         ? `<button class="btn" id="advance-btn">${nextStatusLabel}</button>`
         : ""
     }
@@ -277,7 +279,7 @@ export async function renderProposalDetail(root, user, proposalId, navigate) {
   `;
 
   renderDisposableSection(root.querySelector("#disposable-slot"), user, proposal);
-  if (proposal.status === "in_review" && proposal.category === "event") renderEmailSection(root, user, proposal, navigate);
+  if (proposal.status === "in_review" && usesEmailWorkflow) renderEmailSection(root, user, proposal, navigate);
 
   const posterPath = `/api/proposals/${proposal.id}/poster`;
   root.querySelector("[data-poster-view]")?.addEventListener("click", async (e) => {

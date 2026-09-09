@@ -6,6 +6,7 @@ from sqlalchemy.orm import Session
 from api.auth import get_current_user
 from api.database import get_db
 from api.models import DisposableRequest, Proposal, User, UserRole
+from api.portfolio import admin_committee_filter, committee_portfolio
 from api.schemas import DisposableRequestOut, DisposableRequestUpdate, DisposableRequestUpsert
 from bot.notifications import notify_admins_new_disposable_request, notify_user_disposable_approved
 from api.routes.proposals import get_visible_proposal
@@ -44,6 +45,8 @@ def list_disposables(
         query = query.filter(DisposableRequest.proposal_id == proposal_id)
     elif user.role != UserRole.admin:
         query = query.filter(DisposableRequest.requested_by == user.id)
+    else:
+        query = query.join(DisposableRequest.proposal).join(Proposal.committee).filter(admin_committee_filter(user))
     requests = query.order_by(DisposableRequest.collection_date).all()
     return [_to_out(d) for d in requests]
 
@@ -57,7 +60,9 @@ def todays_collections(
         raise HTTPException(status.HTTP_403_FORBIDDEN, "Admin access required")
     requests = (
         db.query(DisposableRequest)
+        .join(DisposableRequest.proposal).join(Proposal.committee)
         .filter(DisposableRequest.approved.is_(True), DisposableRequest.collection_date == date.today())
+        .filter(admin_committee_filter(admin))
         .all()
     )
     return [_to_out(d) for d in requests]
@@ -97,7 +102,9 @@ async def upsert_disposable(
     db.refresh(disposable)
 
     if is_new:
-        await notify_admins_new_disposable_request(proposal.title, user.display_name or user.email)
+        await notify_admins_new_disposable_request(
+            proposal.title, user.display_name or user.email, committee_portfolio(proposal.committee)
+        )
 
     return _to_out(disposable)
 

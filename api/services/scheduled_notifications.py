@@ -7,7 +7,8 @@ from zoneinfo import ZoneInfo
 
 from api.config import get_settings
 from api.database import SessionLocal
-from api.models import DisposableRequest
+from api.models import DisposableRequest, Portfolio
+from api.portfolio import committee_portfolio
 from bot.notifications import notify_admins_todays_collections
 
 logger = logging.getLogger(__name__)
@@ -26,7 +27,7 @@ async def collection_reminder_loop() -> None:
                         .filter(DisposableRequest.approved.is_(True), DisposableRequest.collection_date == now.date())
                         .all()
                     )
-                    collections = [
+                collections = [
                         (
                             r.proposal.title,
                             r.proposal.committee.name,
@@ -34,7 +35,12 @@ async def collection_reminder_loop() -> None:
                         )
                         for r in requests
                     ]
-                await notify_admins_todays_collections(collections)
+                for portfolio in Portfolio:
+                    portfolio_collections = [
+                        item for item, request in zip(collections, requests)
+                        if committee_portfolio(request.proposal.committee) == portfolio
+                    ]
+                    await notify_admins_todays_collections(portfolio_collections, portfolio)
                 last_notified = now.date()
         except asyncio.CancelledError:
             raise

@@ -13,6 +13,8 @@ class Settings(BaseSettings):
     database_url: str = "sqlite:///./dev.db"
 
     admin_telegram_ids: str = ""
+    social_admin_telegram_ids: str = ""
+    welfare_admin_telegram_ids: str = ""
     secret_key: str = "dev-secret-key"
     environment: str = "development"
 
@@ -32,6 +34,24 @@ class Settings(BaseSettings):
             for raw in self.admin_telegram_ids.split(",")
             if raw.strip()
         }
+
+    @staticmethod
+    def _parse_telegram_ids(raw_ids: str) -> set[int]:
+        return {int(raw.strip()) for raw in raw_ids.split(",") if raw.strip()}
+
+    @property
+    def social_admin_telegram_id_set(self) -> set[int]:
+        # Keep the existing ADMIN_TELEGRAM_IDS setting as the Social fallback.
+        raw = self.social_admin_telegram_ids or self.admin_telegram_ids
+        return self._parse_telegram_ids(raw)
+
+    @property
+    def welfare_admin_telegram_id_set(self) -> set[int]:
+        return self._parse_telegram_ids(self.welfare_admin_telegram_ids)
+
+    @property
+    def all_admin_telegram_id_set(self) -> set[int]:
+        return self.social_admin_telegram_id_set | self.welfare_admin_telegram_id_set
 
 
 @lru_cache

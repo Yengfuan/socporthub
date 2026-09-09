@@ -6,6 +6,7 @@ import logging
 from api.config import get_settings
 from api.database import SessionLocal
 from api.models import DisposableRequest, Proposal, ProposalStatus, Reminder, ReminderTargetType, User, UserRole
+from api.portfolio import admin_committee_filter, committee_portfolio
 from api.services.telegram import send_message, webapp_open_markup
 
 logger = logging.getLogger(__name__)
@@ -71,6 +72,8 @@ async def _handle_status(chat_id: int) -> None:
         query = db.query(Proposal)
         if user.role != UserRole.admin:
             query = query.filter(Proposal.committee_id.in_(user.committee_ids))
+        else:
+            query = query.join(Proposal.committee).filter(admin_committee_filter(user))
         proposals = query.order_by(Proposal.updated_at.desc()).limit(10).all()
         if not proposals:
             await send_message(chat_id, "You have no visible proposals yet.")
@@ -93,7 +96,8 @@ async def _handle_remind(chat_id: int, message: str) -> None:
         db.commit()
         sender = user.display_name or user.email
     from bot.notifications import notify_admins_reminder
-    await notify_admins_reminder(sender, message)
+    portfolio = committee_portfolio(user.committee_memberships[0].committee) if user.committee_memberships else None
+    await notify_admins_reminder(sender, message, portfolio)
     await send_message(chat_id, "Your reminder was sent to the admin.")
 
 
@@ -102,8 +106,13 @@ async def _handle_pending(chat_id: int) -> None:
         user = _user(db, chat_id)
         if not user or user.role != UserRole.admin or user.status.value != "approved":
             return
-        proposals = db.query(Proposal).filter(Proposal.status == ProposalStatus.needs_action).all()
-        disposables = db.query(DisposableRequest).filter(DisposableRequest.approved.is_(False)).all()
+        proposals_query = db.query(Proposal).filter(Proposal.status == ProposalStatus.needs_action)
+        disposables_query = db.query(DisposableRequest).filter(DisposableRequest.approved.is_(False))
+        proposals = proposals_query.join(Proposal.committee).filter(admin_committee_filter(user)).all()
+        disposables = (
+            disposables_query.join(DisposableRequest.proposal).join(Proposal.committee)
+            .filter(admin_committee_filter(user)).all()
+        )
     lines = [f"• Proposal #{p.id}: {p.title}" for p in proposals]
     lines += [f"• Disposables #{d.id}: {d.proposal.title}" for d in disposables]
     await send_message(chat_id, "<b>Pending items</b>\n" + ("\n".join(lines) if lines else "Nothing pending."))

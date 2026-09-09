@@ -15,7 +15,7 @@ from sqlalchemy.orm import Session
 
 from api.config import get_settings
 from api.database import get_db
-from api.models import User, UserRole, UserStatus
+from api.models import Portfolio, User, UserRole, UserStatus
 
 INIT_DATA_MAX_AGE_SECONDS = 24 * 60 * 60
 
@@ -101,3 +101,10 @@ def get_current_admin(user: User = Depends(get_current_user)) -> User:
     if user.role != UserRole.admin:
         raise HTTPException(status.HTTP_403_FORBIDDEN, "Admin access required")
     return user
+
+
+def admin_portfolio(user: User) -> Portfolio:
+    settings = get_settings()
+    if user.telegram_id in settings.welfare_admin_telegram_id_set:
+        return Portfolio.welfare
+    return Portfolio.social
