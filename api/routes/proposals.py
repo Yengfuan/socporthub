@@ -252,7 +252,8 @@ async def update_proposal(
     # Approval has an external side effect (PDF export + email). Keep the status
     # change pending until that side effect succeeds, so a failed email does not
     # falsely tell the admin that the proposal was submitted.
-    if req.status != ProposalStatus.submitted:
+    sends_confirmation_email = req.status == ProposalStatus.submitted and proposal.category == ProposalCategory.event
+    if not sends_confirmation_email:
         db.commit()
         db.refresh(proposal)
 
@@ -261,7 +262,7 @@ async def update_proposal(
         # "there's something for an admin to review now" — same signal as a new proposal.
         await notify_admins_new_proposal(proposal.title, proposal.submitter.display_name or proposal.submitter.email)
 
-    if req.status == ProposalStatus.submitted:
+    if sends_confirmation_email:
         draft = db.query(EmailDraft).filter(EmailDraft.proposal_id == proposal.id).first()
         if draft:
             subject, body = draft.subject, draft.body

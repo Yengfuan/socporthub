@@ -272,7 +272,7 @@ export async function renderProposalDetail(root, user, proposalId, navigate) {
   `;
 
   renderDisposableSection(root.querySelector("#disposable-slot"), user, proposal);
-  if (proposal.status === "in_review") renderEmailSection(root, user, proposal, navigate);
+  if (proposal.status === "in_review" && proposal.category === "event") renderEmailSection(root, user, proposal, navigate);
 
   const posterPath = `/api/proposals/${proposal.id}/poster`;
   root.querySelector("[data-poster-view]")?.addEventListener("click", async (e) => {
