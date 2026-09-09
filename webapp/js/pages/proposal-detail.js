@@ -274,20 +274,35 @@ export async function renderProposalDetail(root, user, proposalId, navigate) {
 
   const posterPath = `/api/proposals/${proposal.id}/poster`;
   root.querySelector("[data-poster-view]")?.addEventListener("click", async (e) => {
-    // Open synchronously so browsers and Telegram WebView don't block the new tab.
-    const preview = window.open("", "_blank");
-    e.target.disabled = true;
+    const button = e.currentTarget;
+    button.disabled = true;
     try {
-      const { blob } = await api.getBlob(posterPath);
+      const { blob, filename } = await api.getBlob(posterPath);
       const url = URL.createObjectURL(blob);
-      if (preview) preview.location = url;
-      else window.location.href = url;
-      setTimeout(() => URL.revokeObjectURL(url), 60_000);
+      const preview = document.createElement("div");
+      preview.className = "poster-preview";
+      preview.innerHTML = `
+        <div class="poster-preview-backdrop" data-poster-close></div>
+        <div class="poster-preview-panel" role="dialog" aria-modal="true" aria-label="Poster preview">
+          <div class="poster-preview-header">
+            <strong>${escapeHtml(filename)}</strong>
+            <button class="btn btn-secondary" type="button" data-poster-close>Close</button>
+          </div>
+          ${blob.type === "application/pdf"
+            ? `<iframe src="${url}" title="${escapeHtml(filename)}"></iframe>`
+            : `<img src="${url}" alt="${escapeHtml(filename)}" />`}
+        </div>`;
+      root.appendChild(preview);
+      preview.querySelectorAll("[data-poster-close]").forEach((close) => {
+        close.addEventListener("click", () => {
+          preview.remove();
+          URL.revokeObjectURL(url);
+        });
+      });
     } catch (err) {
-      preview?.close();
       root.querySelector("#detail-error").innerHTML = `<div class="error-banner">${escapeHtml(err.message)}</div>`;
     } finally {
-      e.target.disabled = false;
+      button.disabled = false;
     }
   });
   root.querySelector("[data-poster-download]")?.addEventListener("click", async (e) => {
