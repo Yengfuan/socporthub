@@ -253,7 +253,7 @@ export async function renderProposalDetail(root, user, proposalId, navigate) {
     ${
       // Submitting/resubmitting is the owner's action; advancing past in_review is
       // the admin's call — never show the other party a button for a step that isn't theirs.
-      (canOwnerSubmit || adminHasAction) && nextStatus
+      (canOwnerSubmit || (adminHasAction && proposal.status !== "in_review")) && nextStatus
         ? `<button class="btn" id="advance-btn">${NEXT_STATUS_LABEL[proposal.status]}</button>`
         : ""
     }
@@ -372,7 +372,7 @@ async function renderEmailSection(root, user, proposal, navigate) {
       <div class="field"><label for="email-recipient">To</label><input id="email-recipient" value="${escapeHtml(draft.recipient)}" disabled /></div>
       <div class="field"><label for="email-subject">Subject</label><input id="email-subject" value="${escapeHtml(draft.subject)}" ${user.role === "admin" ? "" : "disabled"} /></div>
       <div class="field"><label for="email-body">Message</label><textarea id="email-body" ${user.role === "admin" ? "" : "disabled"}>${escapeHtml(draft.body)}</textarea></div>
-      <div id="email-error"></div>${user.role === "admin" ? `<div class="btn-row"><button class="btn btn-secondary" id="save-email">Save Draft</button><button class="btn" id="send-email">Send & Submit</button></div>` : `<p>Email preview only.</p>`}
+      <div id="email-error"></div>${user.role === "admin" ? `<div class="btn-row"><button class="btn btn-secondary" id="save-email">Save Draft</button><button class="btn" id="send-email">Approve & Send PDF</button></div>` : `<p>Email preview only.</p>`}
     </div>`;
     if (user.role !== "admin") return;
     const save = async () => api.patch(`/api/email/preview/${proposal.id}`, { subject: slot.querySelector("#email-subject").value, body: slot.querySelector("#email-body").value });

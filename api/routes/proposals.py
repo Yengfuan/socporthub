@@ -7,7 +7,7 @@ from api.database import get_db
 from api.models import (
     PROPOSAL_STATUS_TRANSITIONS,
     CalendarEvent,
-    Proposal,
+    Proposal, EmailDraft,
     ProposalComment,
     ProposalCategory, ProposalStatus,
     User,
@@ -25,6 +25,9 @@ from bot.notifications import (
     notify_admins_new_proposal,
     notify_user_status_change,
 )
+from api.routes.email import _generated, _without_links
+from api.services.google_docs import download_google_doc_pdf
+from api.services.resend_email import send_email
 
 router = APIRouter(prefix="/api/proposals", tags=["proposals"])
 
@@ -245,13 +248,36 @@ async def update_proposal(
             )
         )
 
-    db.commit()
-    db.refresh(proposal)
+    # Approval has an external side effect (PDF export + email). Keep the status
+    # change pending until that side effect succeeds, so a failed email does not
+    # falsely tell the admin that the proposal was submitted.
+    if req.status != ProposalStatus.submitted:
+        db.commit()
+        db.refresh(proposal)
 
     if req.status == ProposalStatus.in_review and was_awaiting_review:
         # A fresh draft submission or a resubmission after needs_action both mean
         # "there's something for an admin to review now" — same signal as a new proposal.
         await notify_admins_new_proposal(proposal.title, proposal.submitter.display_name or proposal.submitter.email)
+
+    if req.status == ProposalStatus.submitted:
+        draft = db.query(EmailDraft).filter(EmailDraft.proposal_id == proposal.id).first()
+        if draft:
+            subject, body = draft.subject, draft.body
+        else:
+            subject, body = _generated(proposal)
+        attachment = None
+        if proposal.doc_link:
+            filename, pdf = await download_google_doc_pdf(proposal.doc_link)
+            attachment = (filename, pdf)
+        await send_email(
+            to=proposal.submitter.email,
+            subject=_without_links(subject),
+            body=_without_links(body),
+            attachment=attachment,
+        )
+        db.commit()
+        db.refresh(proposal)
 
     if req.status is not None:
         await notify_user_status_change(

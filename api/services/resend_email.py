@@ -1,6 +1,7 @@
 """Small Resend HTTP client used by the admin email workflow."""
 
 import logging
+import base64
 
 import httpx
 from fastapi import HTTPException, status
@@ -10,7 +11,7 @@ from api.config import get_settings
 logger = logging.getLogger(__name__)
 
 
-async def send_email(*, to: str, subject: str, body: str) -> None:
+async def send_email(*, to: str, subject: str, body: str, attachment: tuple[str, bytes] | None = None) -> None:
     settings = get_settings()
     if not settings.resend_api_key or not settings.resend_from_email:
         raise HTTPException(
@@ -20,10 +21,14 @@ async def send_email(*, to: str, subject: str, body: str) -> None:
 
     try:
         async with httpx.AsyncClient(timeout=15) as client:
+            payload = {"from": settings.resend_from_email, "to": [to], "subject": subject, "text": body}
+            if attachment:
+                filename, content = attachment
+                payload["attachments"] = [{"filename": filename, "content": base64.b64encode(content).decode("ascii")}]
             response = await client.post(
                 "https://api.resend.com/emails",
                 headers={"Authorization": f"Bearer {settings.resend_api_key}"},
-                json={"from": settings.resend_from_email, "to": [to], "subject": subject, "text": body},
+                json=payload,
             )
             response.raise_for_status()
     except httpx.HTTPStatusError as exc:
