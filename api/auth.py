@@ -92,6 +92,13 @@ def get_current_user(
     user = db.query(User).filter(User.telegram_id == identity.telegram_id).first()
     if not user:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "User not registered")
+    # Admin IDs are configuration-driven. Promote an already-registered user when
+    # their Telegram ID is added to Railway, rather than requiring re-registration.
+    if identity.telegram_id in get_settings().all_admin_telegram_id_set and user.role != UserRole.admin:
+        user.role = UserRole.admin
+        user.status = UserStatus.approved
+        db.commit()
+        db.refresh(user)
     if user.status != UserStatus.approved:
         raise HTTPException(status.HTTP_403_FORBIDDEN, f"User is {user.status.value}")
     return user
