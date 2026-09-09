@@ -42,8 +42,37 @@ async function request(method, path, body) {
   return res.json();
 }
 
+async function requestBlob(path) {
+  const res = await fetch(path, {
+    method: "GET",
+    headers: { "X-Telegram-Init-Data": getInitData() },
+  });
+
+  if (!res.ok) {
+    let detail = res.statusText;
+    try {
+      const data = await res.json();
+      detail = data.detail || detail;
+    } catch {
+      /* no JSON body */
+    }
+    throw new ApiError(res.status, detail);
+  }
+
+  return {
+    blob: await res.blob(),
+    filename: getFilename(res.headers.get("Content-Disposition")),
+  };
+}
+
+function getFilename(contentDisposition) {
+  const match = contentDisposition?.match(/filename="([^"]+)"/i);
+  return match?.[1] || "poster";
+}
+
 export const api = {
   get: (path) => request("GET", path),
+  getBlob: requestBlob,
   post: (path, body) => request("POST", path, body),
   patch: (path, body) => request("PATCH", path, body),
   upload: (path, body) => request("POST", path, body),

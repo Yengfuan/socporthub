@@ -199,3 +199,28 @@ def test_committee_scoped_visibility(client):
     # Admin sees everything.
     visible_to_admin = client.get("/api/proposals", headers=auth_header(ADMIN)).json()
     assert len(visible_to_admin) == 1
+
+
+def test_admin_can_view_submitted_poster(client):
+    register(client, ADMIN, "admin@example.com")
+    _approve_user(client, USER_A, "a@example.com")
+
+    draft = client.post(
+        "/api/proposals",
+        json={"title": "Poster event", "category": "event", "save_draft": True},
+        headers=auth_header(USER_A),
+    )
+    proposal_id = draft.json()["id"]
+    poster = b"fake-png-bytes"
+    uploaded = client.post(
+        f"/api/proposals/{proposal_id}/poster",
+        files={"poster": ("event.png", poster, "image/png")},
+        headers=auth_header(USER_A),
+    )
+    assert uploaded.status_code == 200
+
+    response = client.get(f"/api/proposals/{proposal_id}/poster", headers=auth_header(ADMIN))
+    assert response.status_code == 200
+    assert response.content == poster
+    assert response.headers["content-type"] == "image/png"
+    assert 'inline; filename="event.png"' in response.headers["content-disposition"]

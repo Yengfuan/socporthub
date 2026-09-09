@@ -210,7 +210,11 @@ export async function renderProposalDetail(root, user, proposalId, navigate) {
 
     <div class="card"><h3>Category</h3><p style="color:var(--text)">${escapeHtml(proposal.category.replaceAll("_", " "))}</p>
       ${proposal.blast_message ? `<h3>Blast message</h3><p style="color:var(--text); white-space:pre-wrap;">${escapeHtml(proposal.blast_message)}</p>` : ""}
-      ${proposal.poster_filename ? `<p><a href="/api/proposals/${proposal.id}/poster" target="_blank" rel="noopener">View poster</a></p>` : ""}
+      ${proposal.poster_filename ? `<div class="poster-actions">
+        <span class="field-hint">Poster: ${escapeHtml(proposal.poster_filename)}</span>
+        <button class="btn btn-secondary" type="button" data-poster-view>View poster</button>
+        <button class="btn btn-secondary" type="button" data-poster-download>Download poster</button>
+      </div>` : ""}
     </div>
 
     <div class="card">
@@ -267,6 +271,43 @@ export async function renderProposalDetail(root, user, proposalId, navigate) {
 
   renderDisposableSection(root.querySelector("#disposable-slot"), user, proposal);
   if (proposal.status === "in_review") renderEmailSection(root, user, proposal, navigate);
+
+  const posterPath = `/api/proposals/${proposal.id}/poster`;
+  root.querySelector("[data-poster-view]")?.addEventListener("click", async (e) => {
+    // Open synchronously so browsers and Telegram WebView don't block the new tab.
+    const preview = window.open("", "_blank");
+    e.target.disabled = true;
+    try {
+      const { blob } = await api.getBlob(posterPath);
+      const url = URL.createObjectURL(blob);
+      if (preview) preview.location = url;
+      else window.location.href = url;
+      setTimeout(() => URL.revokeObjectURL(url), 60_000);
+    } catch (err) {
+      preview?.close();
+      root.querySelector("#detail-error").innerHTML = `<div class="error-banner">${escapeHtml(err.message)}</div>`;
+    } finally {
+      e.target.disabled = false;
+    }
+  });
+  root.querySelector("[data-poster-download]")?.addEventListener("click", async (e) => {
+    e.target.disabled = true;
+    try {
+      const { blob, filename } = await api.getBlob(posterPath);
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = filename;
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      setTimeout(() => URL.revokeObjectURL(url), 60_000);
+    } catch (err) {
+      root.querySelector("#detail-error").innerHTML = `<div class="error-banner">${escapeHtml(err.message)}</div>`;
+    } finally {
+      e.target.disabled = false;
+    }
+  });
 
   root.querySelector("#advance-btn")?.addEventListener("click", async (e) => {
     await changeStatus(e.target, nextStatus);
@@ -360,7 +401,7 @@ function renderEditForm(slot, proposal, navigate) {
         <label for="e-poster">Poster <span class="field-hint">Required for Event, Initiative, and Merch</span></label>
         ${
           proposal.poster_filename
-            ? `<p class="field-hint">Current: <a href="/api/proposals/${proposal.id}/poster" target="_blank" rel="noopener">${escapeHtml(proposal.poster_filename)}</a> — choose a file below to replace it.</p>`
+            ? `<p class="field-hint">Current: ${escapeHtml(proposal.poster_filename)} — choose a file below to replace it.</p>`
             : ""
         }
         <input type="file" id="e-poster" accept="image/jpeg,image/png,image/webp,application/pdf" />
