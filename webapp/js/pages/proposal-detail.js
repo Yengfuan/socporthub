@@ -430,7 +430,7 @@ function renderEditForm(slot, proposal, navigate) {
       <div id="edit-error"></div>
       <div class="btn-row">
         <button type="button" class="btn btn-secondary" id="edit-cancel">Cancel</button>
-        <button type="submit" class="btn">Save Changes</button>
+        <button type="submit" class="btn" id="save-changes">Save Changes</button>
       </div>
     </form>
   `;
@@ -469,6 +469,11 @@ function renderEditForm(slot, proposal, navigate) {
       return;
     }
 
+    const saveButton = slot.querySelector("#save-changes");
+    const cancelButton = slot.querySelector("#edit-cancel");
+    saveButton.disabled = true;
+    cancelButton.disabled = true;
+    saveButton.textContent = "Saving…";
     try {
       await api.patch(`/api/proposals/${proposal.id}`, {
         category: categoryValue,
@@ -483,9 +488,14 @@ function renderEditForm(slot, proposal, navigate) {
         formData.append("poster", poster);
         await api.upload(`/api/proposals/${proposal.id}/poster`, formData);
       }
-      navigate(`proposal/${proposal.id}`);
+      errorEl.innerHTML = `<div class="success-banner" role="status">Changes saved successfully.</div>`;
+      saveButton.textContent = "Saved";
+      setTimeout(() => navigate(`proposal/${proposal.id}`), 700);
     } catch (err) {
       errorEl.innerHTML = `<div class="error-banner">${err.message}</div>`;
+      saveButton.disabled = false;
+      cancelButton.disabled = false;
+      saveButton.textContent = "Save Changes";
     }
   });
 }

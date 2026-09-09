@@ -479,3 +479,12 @@ a {
   font-size: 13px;
   margin-bottom: var(--space-3);
 }
+
+.success-banner {
+  background: var(--green-bg);
+  color: var(--green-text);
+  border-radius: var(--radius);
+  padding: var(--space-3);
+  font-size: 13px;
+  margin-bottom: var(--space-3);
+}
