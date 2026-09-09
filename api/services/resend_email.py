@@ -12,7 +12,7 @@ logger = logging.getLogger(__name__)
 
 
 async def send_email(
-    *, to: str, subject: str, body: str, cc: str | None = None, attachment: tuple[str, bytes] | None = None
+    *, to: str, subject: str, body: str, cc: str | list[str] | None = None, attachment: tuple[str, bytes] | None = None
 ) -> None:
     settings = get_settings()
     if not settings.resend_api_key or not settings.resend_from_email:
@@ -25,7 +25,7 @@ async def send_email(
         async with httpx.AsyncClient(timeout=15) as client:
             payload = {"from": settings.resend_from_email, "to": [to], "subject": subject, "text": body}
             if cc:
-                payload["cc"] = [cc]
+                payload["cc"] = [cc] if isinstance(cc, str) else cc
             if attachment:
                 filename, content = attachment
                 payload["attachments"] = [{"filename": filename, "content": base64.b64encode(content).decode("ascii")}]

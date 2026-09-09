@@ -20,6 +20,17 @@ def _without_links(value: str) -> str:
     return URL_PATTERN.sub("", value).strip()
 
 
+def _committee_ccs(proposal: Proposal) -> list[str]:
+    """Return unique committee-member CCs plus the Social Director address."""
+    addresses = [
+        membership.user.email
+        for membership in proposal.committee.memberships
+        if membership.user.email != proposal.submitter.email
+    ]
+    addresses.append(get_settings().resend_cc_email)
+    return list(dict.fromkeys(addresses))
+
+
 def _proposal(db: Session, proposal_id: int, user: User) -> Proposal:
     proposal = db.get(Proposal, proposal_id)
     if not proposal:
@@ -67,7 +78,7 @@ def _generated(proposal: Proposal) -> tuple[str, str]:
         "-" * 72,
         "",
         f"To: {committee.rf_email}",
-        f"CC: {get_settings().resend_cc_email}",
+        f"CC: {', '.join(_committee_ccs(proposal))}",
         f"Subject: {subject}",
         "",
         f"Dear {committee.rf_name},",
@@ -140,7 +151,7 @@ async def send_proposal_email(
         to=draft.recipient,
         subject=draft.subject,
         body=draft.body,
-        cc=get_settings().resend_cc_email,
+        cc=_committee_ccs(proposal),
         attachment=attachment,
     )
     proposal.status = ProposalStatus.submitted
