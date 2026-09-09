@@ -12,6 +12,7 @@ WELFARE_COMMITTEE_NAMES = {
     "Pioneers",
     "Special Projects",
     "Special Needs",
+    "Welfare D",
 }
 
 
