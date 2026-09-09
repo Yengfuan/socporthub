@@ -44,8 +44,8 @@ def upgrade() -> None:
             .where(committees.c.name == name)
             .values(rf_name=rf_name, rf_email=rf_email)
         )
-    op.alter_column("committees", "rf_name", nullable=False)
-    op.alter_column("committees", "rf_email", nullable=False)
+    # Social D is seeded by migration 0002, but its RF contact has not been
+    # supplied yet. Keep these columns nullable until that contact is provided.
 
 
 def downgrade() -> None:

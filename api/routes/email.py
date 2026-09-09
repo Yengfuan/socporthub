@@ -34,6 +34,11 @@ def _proposal(db: Session, proposal_id: int, user: User) -> Proposal:
 def _generated(proposal: Proposal) -> tuple[str, str]:
     disposable = proposal.disposable_request
     committee = proposal.committee
+    if not committee.rf_name or not committee.rf_email:
+        raise HTTPException(
+            status.HTTP_400_BAD_REQUEST,
+            f"RF contact details have not been configured for {committee.name}",
+        )
     subject = f"[{committee.name}] Event Proposal — {proposal.title}"
     lines = [
         f"Dear {proposal.submitter.display_name or proposal.submitter.email},",
