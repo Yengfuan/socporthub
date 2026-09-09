@@ -9,6 +9,7 @@ from api.models import EmailDraft, Proposal, ProposalStatus, User, UserRole
 from api.schemas import EmailDraftOut, EmailDraftUpdate
 from api.services.resend_email import send_email
 from api.services.google_docs import download_google_doc_pdf
+from api.config import get_settings
 from bot.notifications import notify_user_email_sent
 
 router = APIRouter(prefix="/api/email", tags=["email"])
@@ -32,11 +33,12 @@ def _proposal(db: Session, proposal_id: int, user: User) -> Proposal:
 
 def _generated(proposal: Proposal) -> tuple[str, str]:
     disposable = proposal.disposable_request
-    subject = f"[{proposal.committee.name}] Event Proposal — {proposal.title}"
+    committee = proposal.committee
+    subject = f"[{committee.name}] Event Proposal — {proposal.title}"
     lines = [
         f"Dear {proposal.submitter.display_name or proposal.submitter.email},",
         "",
-        f"Your event proposal for {proposal.committee.name} has been reviewed and submitted.",
+        f"Your event proposal for {proposal.title} for {committee.name} has been reviewed and submitted. Here is a summary:",
         "",
         f"Event: {proposal.title}",
         f"Date: {proposal.event_date or 'Not set'}",
@@ -51,7 +53,24 @@ def _generated(proposal: Proposal) -> tuple[str, str]:
             f"  - Forks: {disposable.forks}",
             f"  - Spoons: {disposable.spoons}",
         ]
-    lines += ["", "If you have any questions, feel free to reach out.", "", "Best regards,", "Social Director, Raffles Hall"]
+    lines += [
+        "",
+        "Please copy and paste everything below the line into a new email to your RF. Please reattach the PDF below.",
+        "",
+        "-" * 72,
+        "",
+        f"To: {committee.rf_email}",
+        f"CC: {get_settings().resend_cc_email}",
+        f"Subject: {subject}",
+        "",
+        f"Dear {committee.rf_name},",
+        "",
+        f"Here is the proposal for {proposal.title} happening on {proposal.event_date or 'a date to be confirmed'} for your approval! Do let me know your comments. Many thanks!",
+        "",
+        "Best regards,",
+        proposal.submitter.display_name or proposal.submitter.email,
+        committee.name,
+    ]
     return subject, "\n".join(lines)
 
 
@@ -109,7 +128,13 @@ async def send_proposal_email(
     attachment = None
     if proposal.doc_link:
         attachment = await download_google_doc_pdf(proposal.doc_link)
-    await send_email(to=draft.recipient, subject=draft.subject, body=draft.body, attachment=attachment)
+    await send_email(
+        to=draft.recipient,
+        subject=draft.subject,
+        body=draft.body,
+        cc=get_settings().resend_cc_email,
+        attachment=attachment,
+    )
     proposal.status = ProposalStatus.submitted
     db.commit()
     db.refresh(draft)

@@ -27,6 +27,8 @@ class CommitteeOut(BaseModel):
     id: int
     name: str
     color: str
+    rf_name: str | None = None
+    rf_email: EmailStr | None = None
 
 
 class UserOut(BaseModel):

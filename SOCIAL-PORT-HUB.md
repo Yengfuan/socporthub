@@ -349,14 +349,8 @@ Subject: [Committee Name] Event Proposal — {proposal.title}
 
 Dear {user.display_name},
 
-Your event proposal for {committee.name} has been reviewed and
+Your event proposal for {proposal.title} for {committee.name} has been reviewed and
 submitted. Here is a summary:
-
-Event: {proposal.title}
-Date: {proposal.event_date}
-Description: {proposal.description}
-
-Supporting document: {proposal.doc_link}
 
 {if disposables_request}
 Hall disposables have been approved for collection
@@ -367,13 +361,21 @@ on {disposable.collection_date}:
   - Spoons: {disposable.spoons}
 {/if}
 
-If you have any questions, feel free to reach out.
+Please copy and paste everything below the line into a new email to your RF. Please reattach the PDF below.
 
+To: {committee.rf_email}
+CC: rh.social.i@u.nus.edu
+Subject: [Committee Name] Event Proposal — {proposal.title}
 
+Dear {committee.rf_name},
+
+Here is the proposal for {proposal.title} happening on {proposal.event_date} for your approval! Do let me know your comments. Many thanks!
 
 Best regards,
-{admin.display_name}
-Social Director, Raffles Hall
+{user.display_name}
+{user.committee_name}
+
+{attach converted PDF from Google Doc link}
 ```
 
 ---

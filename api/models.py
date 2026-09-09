@@ -72,6 +72,10 @@ class Committee(Base):
     id: Mapped[int] = mapped_column(primary_key=True)
     name: Mapped[str] = mapped_column(String(100), unique=True, nullable=False)
     color: Mapped[str] = mapped_column(String(7), nullable=False)
+    # Nullable in the ORM so lightweight test/dev databases created from metadata
+    # remain compatible; migration 0008 makes these required in PostgreSQL.
+    rf_name: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    rf_email: Mapped[str | None] = mapped_column(String(255), nullable=True)
 
     memberships: Mapped[list["UserCommittee"]] = relationship(back_populates="committee")
     proposals: Mapped[list["Proposal"]] = relationship(back_populates="committee")

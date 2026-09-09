@@ -26,6 +26,7 @@ from bot.notifications import (
     notify_user_status_change,
 )
 from api.routes.email import _generated, _without_links
+from api.config import get_settings
 from api.services.google_docs import download_google_doc_pdf
 from api.services.resend_email import send_email
 
@@ -274,6 +275,7 @@ async def update_proposal(
             to=proposal.submitter.email,
             subject=_without_links(subject),
             body=_without_links(body),
+            cc=get_settings().resend_cc_email,
             attachment=attachment,
         )
         db.commit()
