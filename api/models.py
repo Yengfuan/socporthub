@@ -60,7 +60,7 @@ class ReminderTargetType(str, enum.Enum):
 PROPOSAL_STATUS_TRANSITIONS: dict[ProposalStatus, set[ProposalStatus]] = {
     ProposalStatus.draft: {ProposalStatus.in_review},
     ProposalStatus.needs_action: {ProposalStatus.in_review},
-    ProposalStatus.in_review: {ProposalStatus.submitted, ProposalStatus.needs_action},
+    ProposalStatus.in_review: {ProposalStatus.submitted, ProposalStatus.needs_action, ProposalStatus.finished},
     ProposalStatus.submitted: {ProposalStatus.finished},
     ProposalStatus.finished: set(),
 }

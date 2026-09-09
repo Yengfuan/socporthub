@@ -203,6 +203,11 @@ async def update_proposal(
                 status.HTTP_400_BAD_REQUEST,
                 f"Cannot move status from {proposal.status.value} to {req.status.value}",
             )
+        if req.status == ProposalStatus.finished and proposal.category == ProposalCategory.event:
+            raise HTTPException(
+                status.HTTP_400_BAD_REQUEST,
+                "Event proposals must be approved through the email workflow",
+            )
         was_awaiting_review = proposal.status in (ProposalStatus.draft, ProposalStatus.needs_action)
         proposal.status = req.status
 

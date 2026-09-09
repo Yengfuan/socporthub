@@ -195,7 +195,12 @@ export async function renderProposalDetail(root, user, proposalId, navigate) {
   const isAdmin = user.role === "admin";
   const isOwner = proposal.submitted_by === user.id;
   const canEdit = isOwner && ["draft", "needs_action"].includes(proposal.status);
-  const nextStatus = NEXT_STATUS[proposal.status];
+  const nextStatus = proposal.status === "in_review" && proposal.category !== "event"
+    ? "finished"
+    : NEXT_STATUS[proposal.status];
+  const nextStatusLabel = nextStatus === "finished" && proposal.status === "in_review"
+    ? "Approve & Finish"
+    : NEXT_STATUS_LABEL[proposal.status];
   // Owner submits a fresh draft, and resubmits after being sent back to needs_action —
   // both land on in_review. Every other status change is admin-only.
   const canOwnerSubmit = isOwner && ["draft", "needs_action"].includes(proposal.status);
@@ -255,8 +260,8 @@ export async function renderProposalDetail(root, user, proposalId, navigate) {
     ${
       // Submitting/resubmitting is the owner's action; advancing past in_review is
       // the admin's call — never show the other party a button for a step that isn't theirs.
-      (canOwnerSubmit || (adminHasAction && proposal.status !== "in_review")) && nextStatus
-        ? `<button class="btn" id="advance-btn">${NEXT_STATUS_LABEL[proposal.status]}</button>`
+      (canOwnerSubmit || (adminHasAction && (proposal.status !== "in_review" || proposal.category !== "event"))) && nextStatus
+        ? `<button class="btn" id="advance-btn">${nextStatusLabel}</button>`
         : ""
     }
     ${
