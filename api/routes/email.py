@@ -5,8 +5,8 @@ from sqlalchemy.orm import Session
 
 from api.auth import get_current_admin, get_current_user
 from api.database import get_db
-from api.models import EmailDraft, Proposal, ProposalStatus, User, UserRole
-from api.portfolio import sends_confirmation_email
+from api.models import EmailDraft, Portfolio, Proposal, ProposalStatus, User, UserRole
+from api.portfolio import committee_portfolio, sends_confirmation_email
 from api.schemas import EmailDraftOut, EmailDraftUpdate
 from api.services.resend_email import send_email
 from api.services.google_docs import download_google_doc_pdf, proposal_pdf_filename
@@ -28,7 +28,12 @@ def _committee_ccs(proposal: Proposal) -> list[str]:
         for membership in proposal.committee.memberships
         if membership.user.email != proposal.submitter.email
     ]
-    addresses.append(get_settings().resend_cc_email)
+    settings = get_settings()
+    addresses.append(
+        settings.welfare_resend_cc_email
+        if committee_portfolio(proposal.committee) == Portfolio.welfare
+        else settings.resend_cc_email
+    )
     return list(dict.fromkeys(addresses))
 
 

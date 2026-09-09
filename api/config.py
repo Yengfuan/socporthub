@@ -24,6 +24,7 @@ class Settings(BaseSettings):
     resend_api_key: str = ""
     resend_from_email: str = ""
     resend_cc_email: str = "rh.social.i@u.nus.edu"
+    welfare_resend_cc_email: str = "rh.social.e@u.nus.edu"
     app_timezone: str = "Asia/Kuala_Lumpur"
     collection_reminder_hour: int = 8
 
