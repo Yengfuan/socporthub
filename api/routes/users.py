@@ -3,7 +3,7 @@ from sqlalchemy.orm import Session
 
 from api.auth import get_current_admin
 from api.database import get_db
-from api.models import Committee, User, UserCommittee, UserStatus
+from api.models import Committee, EmailDraft, Proposal, User, UserCommittee, UserStatus
 from api.schemas import UserOut, UserUpdateRequest
 from bot.notifications import notify_user_registration_approved, notify_user_registration_rejected
 
@@ -37,6 +37,17 @@ async def update_user(
         raise HTTPException(status.HTTP_404_NOT_FOUND, "User not found")
 
     previous_status = user.status
+    if req.email is not None and str(req.email) != user.email:
+        if db.query(User).filter(User.email == str(req.email), User.id != user.id).first():
+            raise HTTPException(status.HTTP_409_CONFLICT, "Email already in use")
+        user.email = str(req.email)
+
+        # Drafts cache their recipient, so keep them aligned with the user's
+        # current registered address when an admin changes it.
+        proposal_ids = db.query(Proposal.id).filter(Proposal.submitted_by == user.id)
+        db.query(EmailDraft).filter(EmailDraft.proposal_id.in_(proposal_ids)).update(
+            {EmailDraft.recipient: str(req.email)}, synchronize_session=False
+        )
 
     if req.status is not None:
         user.status = req.status

@@ -299,7 +299,7 @@ Auth
 
 Users (admin)
   GET    /api/admin/users             — List all users
-  PATCH  /api/admin/users/:id         — Approve/reject, assign committee
+  PATCH  /api/admin/users/:id         — Edit email, approve/reject, assign committee
 
 Proposals
   GET    /api/proposals               — List (filtered by committee, status)

@@ -43,6 +43,7 @@ class UserOut(BaseModel):
 
 
 class UserUpdateRequest(BaseModel):
+    email: EmailStr | None = None
     status: UserStatus | None = None
     committee_ids: list[int] | None = None
 

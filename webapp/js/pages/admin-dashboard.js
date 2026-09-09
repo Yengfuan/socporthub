@@ -197,6 +197,38 @@ async function renderUsersSection(content) {
       renderUsersSection(content);
     });
   });
+
+  content.querySelectorAll("[data-edit-email]").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      const form = content.querySelector(`[data-email-form="${btn.dataset.editEmail}"]`);
+      form.hidden = false;
+      btn.hidden = true;
+      form.querySelector("input").focus();
+    });
+  });
+  content.querySelectorAll("[data-cancel-email]").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      const form = content.querySelector(`[data-email-form="${btn.dataset.cancelEmail}"]`);
+      form.hidden = true;
+      content.querySelector(`[data-edit-email="${btn.dataset.cancelEmail}"]`).hidden = false;
+    });
+  });
+  content.querySelectorAll("[data-save-email]").forEach((form) => {
+    form.addEventListener("submit", async (event) => {
+      event.preventDefault();
+      const button = form.querySelector("button[type=submit]");
+      button.disabled = true;
+      button.textContent = "Saving…";
+      try {
+        await api.patch(`/api/admin/users/${form.dataset.saveEmail}`, { email: form.querySelector("input").value });
+        await renderUsersSection(content);
+      } catch (error) {
+        button.disabled = false;
+        button.textContent = "Save";
+        window.alert(error.message);
+      }
+    });
+  });
 }
 
 function userRow(user, committees, { pendingActions }) {
@@ -210,6 +242,16 @@ function userRow(user, committees, { pendingActions }) {
         </div>
         ${statusBadge(user.status)}
       </div>
+
+      <button class="btn btn-secondary" data-edit-email="${user.id}" style="margin-top:12px; width:auto;">Edit email</button>
+      <form data-email-form="${user.id}" data-save-email="${user.id}" hidden style="margin-top:12px;">
+        <label style="display:block; font-size:13px; color:var(--text-muted);">Registered email</label>
+        <input type="email" required value="${escapeHtml(user.email)}" style="width:100%; margin-top:4px;" />
+        <div class="btn-row" style="margin-top:8px;">
+          <button class="btn" type="submit">Save</button>
+          <button class="btn btn-secondary" type="button" data-cancel-email="${user.id}">Cancel</button>
+        </div>
+      </form>
 
       ${
         pendingActions
