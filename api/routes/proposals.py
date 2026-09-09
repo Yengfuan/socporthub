@@ -212,8 +212,12 @@ async def update_proposal(
                 status.HTTP_400_BAD_REQUEST,
                 f"Cannot move status from {proposal.status.value} to {req.status.value}",
             )
-        if req.status == ProposalStatus.finished and should_send_confirmation_email(
-            proposal.committee, proposal.category
+        if (
+            proposal.status == ProposalStatus.in_review
+            and req.status == ProposalStatus.finished
+            and should_send_confirmation_email(
+                proposal.committee, proposal.category
+            )
         ):
             raise HTTPException(
                 status.HTTP_400_BAD_REQUEST,
