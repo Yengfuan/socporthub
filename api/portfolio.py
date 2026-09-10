@@ -18,7 +18,14 @@ WELFARE_COMMITTEE_NAMES = {
 # Social committees support the full proposal workflow. Welfare proposals are
 # intentionally limited to the categories owned by that portfolio.
 PORTFOLIO_CATEGORIES: dict[Portfolio, tuple[ProposalCategory, ...]] = {
-    Portfolio.social: tuple(ProposalCategory),
+    Portfolio.social: (
+        ProposalCategory.event,
+        ProposalCategory.initiative,
+        ProposalCategory.welfare,
+        ProposalCategory.decor,
+        ProposalCategory.pantry_cleaning,
+        ProposalCategory.merch,
+    ),
     Portfolio.welfare: (
         ProposalCategory.event,
         ProposalCategory.initiative,

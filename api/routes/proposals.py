@@ -121,11 +121,11 @@ def _validate_category_requirements(
     """
     if category in (ProposalCategory.event, ProposalCategory.initiative, ProposalCategory.pantry_cleaning) and not event_date:
         raise HTTPException(status.HTTP_400_BAD_REQUEST, "An event date is required for this category")
-    if check_poster and category in (ProposalCategory.event, ProposalCategory.initiative, ProposalCategory.merch) and not poster_data:
+    if check_poster and category in (ProposalCategory.event, ProposalCategory.initiative, ProposalCategory.welfare, ProposalCategory.merch) and not poster_data:
         raise HTTPException(status.HTTP_400_BAD_REQUEST, "A poster is required for this category")
     if category in (ProposalCategory.event, ProposalCategory.merch) and not doc_link:
         raise HTTPException(status.HTTP_400_BAD_REQUEST, "A link or PDF URL is required for this category")
-    if category in (ProposalCategory.event, ProposalCategory.initiative) and not blast_message:
+    if category in (ProposalCategory.event, ProposalCategory.initiative, ProposalCategory.welfare) and not blast_message:
         raise HTTPException(status.HTTP_400_BAD_REQUEST, "A blast message is required for this category")
 
 
@@ -336,8 +336,8 @@ async def upload_poster(
     proposal = get_visible_proposal(db, user, proposal_id)
     if proposal.submitted_by != user.id or proposal.status not in (ProposalStatus.draft, ProposalStatus.needs_action):
         raise HTTPException(status.HTTP_403_FORBIDDEN, "Only the owner can upload a poster while editing")
-    if proposal.category not in (ProposalCategory.event, ProposalCategory.initiative, ProposalCategory.merch):
-        raise HTTPException(status.HTTP_400_BAD_REQUEST, "Posters are only used for Event, Initiative, and Merch proposals")
+    if proposal.category not in (ProposalCategory.event, ProposalCategory.initiative, ProposalCategory.welfare, ProposalCategory.merch):
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, "Posters are only used for Event, Initiative, Welfare, and Merch proposals")
     if poster.content_type not in {"image/jpeg", "image/png", "image/webp", "application/pdf"}:
         raise HTTPException(status.HTTP_400_BAD_REQUEST, "Poster must be a PDF, PNG, JPG, or WEBP file")
     data = await poster.read()

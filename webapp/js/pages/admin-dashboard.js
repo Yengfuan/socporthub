@@ -65,16 +65,17 @@ async function renderDisposablesSection(content) {
         (acc, r) => ({
           plates: acc.plates + r.plates,
           cups: acc.cups + r.cups,
+          bowls: acc.bowls + r.bowls,
           forks: acc.forks + r.forks,
           spoons: acc.spoons + r.spoons,
         }),
-        { plates: 0, cups: 0, forks: 0, spoons: 0 }
+        { plates: 0, cups: 0, bowls: 0, forks: 0, spoons: 0 }
       );
       const isToday = d === todayStr;
       return `
         <div class="card" style="${isToday ? "border: 2px solid var(--accent);" : ""}">
           <h3>${d}${isToday ? " · Today" : ""}</h3>
-          <p style="color:var(--text)">Totals — Plates: ${totals.plates} · Cups: ${totals.cups} · Forks: ${totals.forks} · Spoons: ${totals.spoons}</p>
+          <p style="color:var(--text)">Totals — Plates: ${totals.plates} · Cups: ${totals.cups} · Bowls: ${totals.bowls} · Forks: ${totals.forks} · Spoons: ${totals.spoons}</p>
           ${items
             .map(
               (r) => `

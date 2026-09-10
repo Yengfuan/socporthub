@@ -24,6 +24,7 @@ def _to_out(d: DisposableRequest) -> DisposableRequestOut:
         requester_name=d.requester.display_name,
         plates=d.plates,
         cups=d.cups,
+        bowls=d.bowls,
         forks=d.forks,
         spoons=d.spoons,
         collection_date=d.collection_date,
@@ -87,6 +88,7 @@ async def upsert_disposable(
     disposable = existing or DisposableRequest(proposal_id=proposal_id, requested_by=user.id)
     disposable.plates = req.plates
     disposable.cups = req.cups
+    disposable.bowls = req.bowls
     disposable.forks = req.forks
     disposable.spoons = req.spoons
     disposable.collection_date = req.collection_date

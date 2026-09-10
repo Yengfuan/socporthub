@@ -74,6 +74,7 @@ def _generated(proposal: Proposal) -> tuple[str, str]:
             f"Hall disposables have been approved for collection on {disposable.collection_date}:",
             f"  - Plates: {disposable.plates}",
             f"  - Cups: {disposable.cups}",
+            f"  - Bowls: {disposable.bowls}",
             f"  - Forks: {disposable.forks}",
             f"  - Spoons: {disposable.spoons}",
         ]

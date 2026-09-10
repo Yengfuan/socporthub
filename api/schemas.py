@@ -135,6 +135,7 @@ class ProposalCommentOut(BaseModel):
 class DisposableRequestUpsert(BaseModel):
     plates: int = 0
     cups: int = 0
+    bowls: int = 0
     forks: int = 0
     spoons: int = 0
     collection_date: date
@@ -156,6 +157,7 @@ class DisposableRequestOut(BaseModel):
     requester_name: str | None
     plates: int
     cups: int
+    bowls: int
     forks: int
     spoons: int
     collection_date: date

@@ -42,6 +42,7 @@ class ProposalStatus(str, enum.Enum):
 class ProposalCategory(str, enum.Enum):
     event = "event"
     initiative = "initiative"
+    welfare = "welfare"
     decor = "decor"
     pantry_cleaning = "pantry_cleaning"
     merch = "merch"
@@ -171,6 +172,7 @@ class DisposableRequest(Base):
     requested_by: Mapped[int] = mapped_column(ForeignKey("users.id"), nullable=False)
     plates: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
     cups: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+    bowls: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
     forks: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
     spoons: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
     collection_date: Mapped[date] = mapped_column(Date, nullable=False)

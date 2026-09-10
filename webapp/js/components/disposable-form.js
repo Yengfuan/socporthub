@@ -17,7 +17,7 @@ export async function renderDisposableSection(container, user, proposal) {
       ${
         existing
           ? `<p style="color:var(--text)">
-               Plates: ${existing.plates} · Cups: ${existing.cups} · Forks: ${existing.forks} · Spoons: ${existing.spoons}<br/>
+               Plates: ${existing.plates} · Cups: ${existing.cups} · Bowls: ${existing.bowls} · Forks: ${existing.forks} · Spoons: ${existing.spoons}<br/>
                Collection date: ${existing.collection_date}
                ${existing.collection_time ? `<br/>Collection time: ${existing.collection_time}` : ""}
              </p>
@@ -58,6 +58,10 @@ function renderForm(slot, proposal, existing, onSaved) {
         <input type="number" id="d-cups" min="0" value="${existing?.cups ?? 0}" />
       </div>
       <div class="field">
+        <label for="d-bowls">Bowls</label>
+        <input type="number" id="d-bowls" min="0" value="${existing?.bowls ?? 0}" />
+      </div>
+      <div class="field">
         <label for="d-forks">Forks</label>
         <input type="number" id="d-forks" min="0" value="${existing?.forks ?? 0}" />
       </div>
@@ -85,6 +89,7 @@ function renderForm(slot, proposal, existing, onSaved) {
       await api.post(`/api/disposables/${proposal.id}`, {
         plates: Number(slot.querySelector("#d-plates").value) || 0,
         cups: Number(slot.querySelector("#d-cups").value) || 0,
+        bowls: Number(slot.querySelector("#d-bowls").value) || 0,
         forks: Number(slot.querySelector("#d-forks").value) || 0,
         spoons: Number(slot.querySelector("#d-spoons").value) || 0,
         collection_date: slot.querySelector("#d-collection_date").value,

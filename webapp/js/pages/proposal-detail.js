@@ -25,18 +25,19 @@ function escapeHtml(s) {
 const CATEGORY_LABELS = {
   event: "Event",
   initiative: "Initiative",
+  welfare: "Welfare",
   decor: "Decor",
   pantry_cleaning: "Pantry Cleaning",
   merch: "Merch",
 };
 const PORTFOLIO_CATEGORIES = {
-  social: ["event", "initiative", "decor", "pantry_cleaning", "merch"],
+  social: ["event", "initiative", "welfare", "decor", "pantry_cleaning", "merch"],
   welfare: ["event", "initiative"],
 };
-const CATEGORY_REQUIRES_POSTER = ["event", "initiative", "merch"];
+const CATEGORY_REQUIRES_POSTER = ["event", "initiative", "welfare", "merch"];
 const CATEGORY_REQUIRES_DOC = ["event", "merch"];
-const CATEGORY_REQUIRES_BLAST = ["event", "initiative"];
-const CATEGORY_REQUIRES_EVENT_DATE = ["event", "initiative", "pantry_cleaning"];
+const CATEGORY_REQUIRES_BLAST = ["event", "initiative", "welfare"];
+const CATEGORY_REQUIRES_EVENT_DATE = ["event", "initiative", "welfare", "pantry_cleaning"];
 
 function categoryOptions(selected, portfolio = "social") {
   const values = PORTFOLIO_CATEGORIES[portfolio] || PORTFOLIO_CATEGORIES.social;
@@ -112,7 +113,7 @@ export function renderNewProposal(root, navigate, user) {
         <input type="url" id="doc_link" name="doc_link" placeholder="https://" value="${escapeHtml(saved.doc_link)}" />
       </div>
       <div class="field" data-poster-field>
-        <label for="poster">Poster <span class="field-hint">Required for Event, Initiative, and Merch</span></label>
+        <label for="poster">Poster <span class="field-hint">Required for Event, Initiative, Welfare, and Merch</span></label>
         <input type="file" id="poster" name="poster" accept="image/jpeg,image/png,image/webp,application/pdf" />
       </div>
       <div class="field">
@@ -436,7 +437,7 @@ function renderEditForm(slot, proposal, navigate) {
         <input type="url" id="e-doc_link" value="${escapeHtml(proposal.doc_link)}" placeholder="https://" />
       </div>
       <div class="field" data-poster-field>
-        <label for="e-poster">Poster <span class="field-hint">Required for Event, Initiative, and Merch</span></label>
+        <label for="e-poster">Poster <span class="field-hint">Required for Event, Initiative, Welfare, and Merch</span></label>
         ${
           proposal.poster_filename
             ? `<p class="field-hint">Current: ${escapeHtml(proposal.poster_filename)} — choose a file below to replace it.</p>`
