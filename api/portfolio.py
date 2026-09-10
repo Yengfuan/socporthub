@@ -15,11 +15,29 @@ WELFARE_COMMITTEE_NAMES = {
     "Welfare D",
 }
 
+# Social committees support the full proposal workflow. Welfare proposals are
+# intentionally limited to the categories owned by that portfolio.
+PORTFOLIO_CATEGORIES: dict[Portfolio, tuple[ProposalCategory, ...]] = {
+    Portfolio.social: tuple(ProposalCategory),
+    Portfolio.welfare: (
+        ProposalCategory.event,
+        ProposalCategory.initiative,
+    ),
+}
+
 
 def committee_portfolio(committee: Committee) -> Portfolio:
     return committee.portfolio or (
         Portfolio.welfare if committee.name in WELFARE_COMMITTEE_NAMES else Portfolio.social
     )
+
+
+def portfolio_categories(portfolio: Portfolio) -> tuple[ProposalCategory, ...]:
+    return PORTFOLIO_CATEGORIES[portfolio]
+
+
+def category_allowed_for_committee(committee: Committee, category: ProposalCategory) -> bool:
+    return category in portfolio_categories(committee_portfolio(committee))
 
 
 def admin_can_access_committee(user: User, committee: Committee) -> bool:

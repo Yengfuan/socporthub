@@ -14,7 +14,12 @@ from api.models import (
     User,
     UserRole,
 )
-from api.portfolio import admin_committee_filter, committee_portfolio, sends_confirmation_email as should_send_confirmation_email
+from api.portfolio import (
+    admin_committee_filter,
+    category_allowed_for_committee,
+    committee_portfolio,
+    sends_confirmation_email as should_send_confirmation_email,
+)
 from api.schemas import (
     ProposalCommentCreate,
     ProposalCommentOut,
@@ -143,6 +148,9 @@ async def create_proposal(
         )
     # A user may belong to multiple committees; submit under the first for MVP simplicity.
     committee_id = sorted(user.committee_ids)[0]
+    committee = db.get(Committee, committee_id)
+    if not category_allowed_for_committee(committee, req.category):
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, "That category is not available for this portfolio")
 
     proposal = Proposal(
         committee_id=committee_id,
@@ -239,6 +247,9 @@ async def update_proposal(
             )
         if "title" in provided_content_fields and req.title is None:
             raise HTTPException(status.HTTP_400_BAD_REQUEST, "title cannot be cleared")
+        if "category" in provided_content_fields and req.category is not None:
+            if not category_allowed_for_committee(proposal.committee, req.category):
+                raise HTTPException(status.HTTP_400_BAD_REQUEST, "That category is not available for this portfolio")
         for field in provided_content_fields:
             setattr(proposal, field, getattr(req, field))
 

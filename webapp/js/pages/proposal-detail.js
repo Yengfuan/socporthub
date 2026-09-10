@@ -29,15 +29,28 @@ const CATEGORY_LABELS = {
   pantry_cleaning: "Pantry Cleaning",
   merch: "Merch",
 };
+const PORTFOLIO_CATEGORIES = {
+  social: ["event", "initiative", "decor", "pantry_cleaning", "merch"],
+  welfare: ["event", "initiative"],
+};
 const CATEGORY_REQUIRES_POSTER = ["event", "initiative", "merch"];
 const CATEGORY_REQUIRES_DOC = ["event", "merch"];
 const CATEGORY_REQUIRES_BLAST = ["event", "initiative"];
 const CATEGORY_REQUIRES_EVENT_DATE = ["event", "initiative", "pantry_cleaning"];
 
-function categoryOptions(selected) {
-  return Object.entries(CATEGORY_LABELS)
+function categoryOptions(selected, portfolio = "social") {
+  const values = PORTFOLIO_CATEGORIES[portfolio] || PORTFOLIO_CATEGORIES.social;
+  // Keep a legacy category visible while editing an older proposal that is no
+  // longer part of the portfolio's current menu.
+  const options = values.includes(selected) ? values : [selected, ...values].filter(Boolean);
+  return options.map((value) => [value, CATEGORY_LABELS[value] || value])
     .map(([value, label]) => `<option value="${value}" ${selected === value ? "selected" : ""}>${label}</option>`)
     .join("");
+}
+
+function userPortfolio(user) {
+  const committees = [...(user?.committees || [])].sort((a, b) => a.id - b.id);
+  return committees[0]?.portfolio || "social";
 }
 
 // Shared by the new-proposal and edit forms: shows/hides the poster field and updates
@@ -67,8 +80,9 @@ function applyCategoryRequirements(root, categoryValue) {
   return { needsPoster, needsDoc, needsBlast, needsEventDate };
 }
 
-export function renderNewProposal(root, navigate) {
+export function renderNewProposal(root, navigate, user) {
   const saved = {};
+  const portfolio = userPortfolio(user);
   root.innerHTML = `
     <div class="page-header">
       <span class="back" data-nav="home">&larr; Back</span>
@@ -82,7 +96,7 @@ export function renderNewProposal(root, navigate) {
       <div class="field">
         <label for="category">Category</label>
         <select id="category" name="category" required>
-          ${categoryOptions(saved.category || "pantry_cleaning")}
+          ${categoryOptions(saved.category || (portfolio === "welfare" ? "event" : "pantry_cleaning"), portfolio)}
         </select>
       </div>
       <div class="field">
@@ -403,7 +417,7 @@ function renderEditForm(slot, proposal, navigate) {
     <form id="edit-form" class="card" style="margin-top:16px">
       <div class="field">
         <label for="e-category">Category</label>
-        <select id="e-category">${categoryOptions(proposal.category)}</select>
+        <select id="e-category">${categoryOptions(proposal.category, proposal.portfolio)}</select>
       </div>
       <div class="field">
         <label for="e-title">Title</label>

@@ -89,7 +89,7 @@ async function render() {
     } else if (route === "bug-report") {
       renderBugReport(page);
     } else if (route === "proposal/new") {
-      renderNewProposal(page, navigate);
+      renderNewProposal(page, navigate, currentUser);
     } else if (route.startsWith("proposal/")) {
       const id = route.split("/")[1];
       await renderProposalDetail(page, currentUser, id, navigate);
