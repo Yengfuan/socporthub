@@ -1,3 +1,5 @@
+import json
+
 from fastapi import APIRouter, Depends, File, HTTPException, UploadFile, status
 from fastapi.responses import Response
 from fastapi import Query
@@ -42,6 +44,10 @@ router = APIRouter(prefix="/api/proposals", tags=["proposals"])
 
 
 def _to_out(p: Proposal) -> ProposalOut:
+    try:
+        requested_ccas = json.loads(p.requested_ccas or "[]")
+    except json.JSONDecodeError:
+        requested_ccas = []
     return ProposalOut(
         id=p.id,
         committee_id=p.committee_id,
@@ -58,8 +64,10 @@ def _to_out(p: Proposal) -> ProposalOut:
         poster_content_type=p.poster_content_type,
         status=p.status,
         event_date=p.event_date,
+        event_time=p.event_time.isoformat(timespec="minutes") if p.event_time else None,
         created_at=p.created_at,
         updated_at=p.updated_at,
+        requested_ccas=requested_ccas if isinstance(requested_ccas, list) else [],
     )
 
 
@@ -110,6 +118,7 @@ def _validate_category_requirements(
     category: ProposalCategory,
     *,
     event_date,
+    event_time,
     doc_link: str | None,
     blast_message: str | None,
     poster_data: bytes | None,
@@ -143,6 +152,7 @@ async def create_proposal(
         _validate_category_requirements(
             req.category,
             event_date=req.event_date,
+            event_time=req.event_time,
             doc_link=req.doc_link,
             blast_message=req.blast_message,
             poster_data=None,
@@ -163,6 +173,8 @@ async def create_proposal(
         doc_link=req.doc_link,
         blast_message=req.blast_message,
         event_date=req.event_date,
+        event_time=req.event_time,
+        requested_ccas=json.dumps(req.requested_ccas),
         status=ProposalStatus.draft if req.save_draft else ProposalStatus.in_review,
     )
     db.add(proposal)
@@ -238,7 +250,7 @@ async def update_proposal(
         was_awaiting_review = proposal.status in (ProposalStatus.draft, ProposalStatus.needs_action)
         proposal.status = req.status
 
-    content_fields = ("category", "title", "description", "doc_link", "blast_message", "event_date")
+    content_fields = ("category", "title", "description", "doc_link", "blast_message", "event_date", "event_time", "requested_ccas")
     # Use model_fields_set (not "is not None") so a client can explicitly clear a
     # nullable field — e.g. {"event_date": null} — by including the key in the payload.
     # Omitting the key entirely means "leave this field alone".
@@ -255,12 +267,14 @@ async def update_proposal(
             if not category_allowed_for_committee(proposal.committee, req.category):
                 raise HTTPException(status.HTTP_400_BAD_REQUEST, "That category is not available for this portfolio")
         for field in provided_content_fields:
-            setattr(proposal, field, getattr(req, field))
+            value = getattr(req, field)
+            setattr(proposal, field, json.dumps(value) if field == "requested_ccas" else value)
 
     if req.status == ProposalStatus.in_review:
         _validate_category_requirements(
             proposal.category,
             event_date=proposal.event_date,
+            event_time=proposal.event_time,
             doc_link=proposal.doc_link,
             blast_message=proposal.blast_message,
             poster_data=proposal.poster_data,

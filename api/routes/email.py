@@ -67,6 +67,7 @@ def _generated(proposal: Proposal) -> tuple[str, str]:
         "",
         f"Event: {proposal.title}",
         f"Date: {proposal.event_date or 'Not set'}",
+        f"Time: {proposal.event_time.strftime('%H:%M') if proposal.event_time else 'Not set'}",
         f"Description: {proposal.description or 'Not provided'}",
     ]
     if disposable and disposable.approved:
@@ -91,7 +92,7 @@ def _generated(proposal: Proposal) -> tuple[str, str]:
         "",
         f"Dear {committee.rf_name},",
         "",
-        f"Here is the proposal for {proposal.title} happening on {proposal.event_date or 'a date to be confirmed'} for your approval! Do let me know your comments. Many thanks!",
+        f"Here is the proposal for {proposal.title} happening on {proposal.event_date or 'a date to be confirmed'} at {proposal.event_time.strftime('%H:%M') if proposal.event_time else 'a time to be confirmed'} for your approval! Do let me know your comments. Many thanks!",
         "",
         "Best regards,",
         proposal.submitter.display_name or proposal.submitter.email,

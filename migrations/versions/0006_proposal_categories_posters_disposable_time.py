@@ -21,7 +21,11 @@ def upgrade() -> None:
     op.add_column("proposals", sa.Column("poster_content_type", sa.String(length=100), nullable=True))
     op.add_column("proposals", sa.Column("poster_data", sa.LargeBinary(), nullable=True))
     op.add_column("disposable_requests", sa.Column("collection_time", sa.Time(), nullable=True))
-    op.alter_column("proposals", "category", server_default=None)
+    # SQLite cannot alter a column default in place. The default is only a
+    # migration-time aid for existing rows, so retaining it in a local SQLite
+    # database is harmless; PostgreSQL should still remove it as intended.
+    if op.get_bind().dialect.name != "sqlite":
+        op.alter_column("proposals", "category", server_default=None)
 
 
 def downgrade() -> None:

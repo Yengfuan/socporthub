@@ -5,5 +5,7 @@ venv/
 .env
 dev.db
 *.db
+*.db.*
+.vscode/
 .pytest_cache/
 .DS_Store

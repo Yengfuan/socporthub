@@ -1,6 +1,7 @@
 import { api } from "../api.js";
 import { statusBadge } from "../components/status-badge.js";
 import { renderDisposableSection } from "../components/disposable-form.js";
+import { renderCommitteeFormsSection } from "../components/committee-forms.js";
 
 const NEXT_STATUS = {
   draft: "in_review",
@@ -38,6 +39,13 @@ const CATEGORY_REQUIRES_POSTER = ["event", "initiative", "welfare", "merch"];
 const CATEGORY_REQUIRES_DOC = ["event", "merch"];
 const CATEGORY_REQUIRES_BLAST = ["event", "initiative", "welfare"];
 const CATEGORY_REQUIRES_EVENT_DATE = ["event", "initiative", "welfare", "pantry_cleaning"];
+const EXTERNAL_CCAS = ["BOP", "Tech Crew", "AnG", "BnC", "Devs", "Commotion", "PP", "PS"];
+
+function externalCcaOptions(selected = []) {
+  return EXTERNAL_CCAS
+    .map((cca) => `<option value="${escapeHtml(cca)}" ${selected.includes(cca) ? "selected" : ""}>${escapeHtml(cca)}</option>`)
+    .join("");
+}
 
 function categoryOptions(selected, portfolio = "social") {
   const values = PORTFOLIO_CATEGORIES[portfolio] || PORTFOLIO_CATEGORIES.social;
@@ -109,6 +117,10 @@ export function renderNewProposal(root, navigate, user) {
         <input type="date" id="event_date" name="event_date" value="${escapeHtml(saved.event_date)}" />
       </div>
       <div class="field">
+        <label for="event_time">Event time <span data-event-time-hint></span></label>
+        <input type="time" id="event_time" name="event_time" value="${escapeHtml(saved.event_time)}" />
+      </div>
+      <div class="field">
         <label for="doc_link">Link / PDF URL <span data-doc-hint></span></label>
         <input type="url" id="doc_link" name="doc_link" placeholder="https://" value="${escapeHtml(saved.doc_link)}" />
       </div>
@@ -119,6 +131,13 @@ export function renderNewProposal(root, navigate, user) {
       <div class="field">
         <label for="blast_message" data-blast-label>Blast message (optional)</label>
         <textarea id="blast_message" name="blast_message" placeholder="Message to accompany the event announcement">${escapeHtml(saved.blast_message)}</textarea>
+      </div>
+      <div class="field">
+        <label for="requested_ccas">External CCAs to request (optional)</label>
+        <select id="requested_ccas" name="requested_ccas" multiple size="4">
+          ${externalCcaOptions([])}
+        </select>
+        <div class="field-hint">Hold Ctrl (Windows) or Cmd (Mac) to select more than one.</div>
       </div>
       <div id="form-error"></div>
       <div class="btn-row"><button type="button" class="btn btn-secondary" id="save-draft">Save Draft</button><button type="submit" class="btn">Submit for Review</button></div>
@@ -139,8 +158,10 @@ export function renderNewProposal(root, navigate, user) {
         category: form.category.value,
         description: form.description.value.trim() || null,
         event_date: form.event_date.value || null,
+        event_time: form.event_time.value || null,
         doc_link: form.doc_link.value.trim() || null,
         blast_message: form.blast_message.value.trim() || null,
+        requested_ccas: Array.from(form.requested_ccas.selectedOptions).map((option) => option.value),
         save_draft: true,
       });
       const poster = form.poster.files[0];
@@ -149,7 +170,7 @@ export function renderNewProposal(root, navigate, user) {
         formData.append("poster", poster);
         await api.upload(`/api/proposals/${proposal.id}/poster`, formData);
       }
-      navigate("home");
+      navigate(`proposal/${proposal.id}`);
     } catch (err) {
       root.querySelector("#form-error").innerHTML = `<div class="error-banner">${escapeHtml(err.message)}</div>`;
       saveButton.disabled = false;
@@ -170,6 +191,9 @@ export function renderNewProposal(root, navigate, user) {
       if (CATEGORY_REQUIRES_EVENT_DATE.includes(categoryValue) && !e.target.event_date.value) {
         throw new Error("Please provide an event date for this category.");
       }
+      if (CATEGORY_REQUIRES_EVENT_DATE.includes(categoryValue) && !e.target.event_time.value) {
+        throw new Error("Please provide an event time for this category.");
+      }
       if (CATEGORY_REQUIRES_POSTER.includes(categoryValue) && !poster) {
         throw new Error("Please select a poster for this category.");
       }
@@ -184,8 +208,10 @@ export function renderNewProposal(root, navigate, user) {
         category: categoryValue,
         description: e.target.description.value.trim() || null,
         event_date: e.target.event_date.value || null,
+        event_time: e.target.event_time.value || null,
         doc_link: e.target.doc_link.value.trim() || null,
         blast_message: e.target.blast_message.value.trim() || null,
+        requested_ccas: Array.from(e.target.requested_ccas.selectedOptions).map((option) => option.value),
         save_draft: true,
       });
       if (poster) {
@@ -251,6 +277,9 @@ export async function renderProposalDetail(root, user, proposalId, navigate) {
       <h3>Event date</h3>
       <p style="color: var(--text)">${proposal.event_date || "Not set"}</p>
 
+      <h3>Event time</h3>
+      <p style="color: var(--text)">${proposal.event_time || "Not set"}</p>
+
       <h3>Supporting document</h3>
       <p>${
         proposal.doc_link
@@ -261,6 +290,7 @@ export async function renderProposalDetail(root, user, proposalId, navigate) {
       }</p>
     </div>
 
+    <div id="committee-forms-slot"></div>
     <div id="disposable-slot"></div>
 
     ${canEdit ? `<button class="btn btn-secondary" id="edit-btn">Edit Proposal</button>` : ""}
@@ -297,6 +327,7 @@ export async function renderProposalDetail(root, user, proposalId, navigate) {
     ${!isAdmin ? `<button class="btn btn-secondary" id="remind-btn" style="margin-top:12px">Remind Admin</button>` : ""}
   `;
 
+  renderCommitteeFormsSection(root.querySelector("#committee-forms-slot"), proposal);
   renderDisposableSection(root.querySelector("#disposable-slot"), user, proposal);
   if (proposal.status === "in_review" && usesEmailWorkflow) renderEmailSection(root, user, proposal, navigate);
 
@@ -440,6 +471,10 @@ function renderEditForm(slot, proposal, navigate) {
         <input type="date" id="e-event_date" value="${proposal.event_date || ""}" />
       </div>
       <div class="field">
+        <label for="e-event_time">Event time <span data-event-time-hint></span></label>
+        <input type="time" id="e-event_time" value="${proposal.event_time || ""}" />
+      </div>
+      <div class="field">
         <label for="e-doc_link">Link / PDF URL <span data-doc-hint></span></label>
         <input type="url" id="e-doc_link" value="${escapeHtml(proposal.doc_link)}" placeholder="https://" />
       </div>
@@ -455,6 +490,11 @@ function renderEditForm(slot, proposal, navigate) {
       <div class="field">
         <label for="e-blast_message" data-blast-label>Blast message</label>
         <textarea id="e-blast_message">${escapeHtml(proposal.blast_message)}</textarea>
+      </div>
+      <div class="field">
+        <label for="e-requested_ccas">External CCAs to request (optional)</label>
+        <select id="e-requested_ccas" multiple size="4">${externalCcaOptions(proposal.requested_ccas || [])}</select>
+        <div class="field-hint">Hold Ctrl (Windows) or Cmd (Mac) to select more than one.</div>
       </div>
       <div id="edit-error"></div>
       <div class="btn-row">
@@ -485,6 +525,10 @@ function renderEditForm(slot, proposal, navigate) {
       errorEl.innerHTML = `<div class="error-banner">Please provide an event date for this category.</div>`;
       return;
     }
+    if (CATEGORY_REQUIRES_EVENT_DATE.includes(categoryValue) && !slot.querySelector("#e-event_time").value) {
+      errorEl.innerHTML = `<div class="error-banner">Please provide an event time for this category.</div>`;
+      return;
+    }
     if (CATEGORY_REQUIRES_POSTER.includes(categoryValue) && !poster && !hasExistingPoster) {
       errorEl.innerHTML = `<div class="error-banner">Please select a poster for this category.</div>`;
       return;
@@ -509,8 +553,10 @@ function renderEditForm(slot, proposal, navigate) {
         title: slot.querySelector("#e-title").value.trim(),
         description: slot.querySelector("#e-description").value.trim() || null,
         event_date: slot.querySelector("#e-event_date").value || null,
+        event_time: slot.querySelector("#e-event_time").value || null,
         doc_link: slot.querySelector("#e-doc_link").value.trim() || null,
         blast_message: slot.querySelector("#e-blast_message").value.trim() || null,
+        requested_ccas: Array.from(slot.querySelector("#e-requested_ccas").selectedOptions).map((option) => option.value),
       });
       if (poster) {
         const formData = new FormData();

@@ -28,6 +28,13 @@ class Settings(BaseSettings):
     app_timezone: str = "Asia/Kuala_Lumpur"
     collection_reminder_hour: int = 8
 
+    # JSON object keyed by committee name. This is intentionally configuration-
+    # driven for the first Google Forms test, so adding a form does not require
+    # a database migration. Example:
+    # {"Sports":{"url":"https://docs.google.com/forms/d/e/.../viewform",
+    # "fields":{"request_id":"entry.123"},"sections":["Request","Budget"]}}
+    google_form_configs: str = "{}"
+
     @property
     def admin_telegram_id_set(self) -> set[int]:
         return {

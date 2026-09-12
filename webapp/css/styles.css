@@ -261,6 +261,63 @@ a {
   margin-top: var(--space-1);
 }
 
+/* --- Committee Google Forms test workflow --- */
+
+.committee-form-list {
+  display: grid;
+  gap: var(--space-3);
+}
+
+.committee-form-selectors {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-3);
+  margin: var(--space-3) 0;
+  font-size: 13px;
+}
+
+.committee-form-selectors label {
+  cursor: pointer;
+}
+
+.committee-form-card {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: var(--space-3);
+  padding: var(--space-3);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+}
+
+.committee-form-actions {
+  display: flex;
+  gap: var(--space-2);
+  flex-shrink: 0;
+}
+
+.committee-form-actions .btn {
+  width: auto;
+  white-space: nowrap;
+  padding: var(--space-2) var(--space-3);
+  font-size: 13px;
+}
+
+.committee-form-sections {
+  margin-top: var(--space-1);
+}
+
+@media (max-width: 520px) {
+  .committee-form-card {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .committee-form-actions .btn {
+    flex: 1;
+  }
+}
+
 /* --- Buttons --- */
 
 .btn {

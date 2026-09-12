@@ -1,4 +1,4 @@
-from datetime import date, datetime
+from datetime import date, datetime, time
 
 from pydantic import BaseModel, ConfigDict, EmailStr
 
@@ -36,6 +36,15 @@ class CommitteeOut(BaseModel):
     rf_email: EmailStr | None = None
 
 
+class CommitteeFormOut(BaseModel):
+    form_key: str
+    committee_id: int | None = None
+    committee_name: str
+    url: str | None = None
+    fields: dict[str, str] = {}
+    sections: list[str] = []
+
+
 class UserOut(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
@@ -66,6 +75,8 @@ class ProposalCreateRequest(BaseModel):
     blast_message: str | None = None
     save_draft: bool = False
     event_date: date | None = None
+    event_time: time | None = None
+    requested_ccas: list[str] = []
 
 
 class ProposalUpdateRequest(BaseModel):
@@ -75,6 +86,7 @@ class ProposalUpdateRequest(BaseModel):
     doc_link: str | None = None
     blast_message: str | None = None
     event_date: date | None = None
+    event_time: time | None = None
     status: ProposalStatus | None = None
     # Admin-only escape hatch for submitting a proposal when the email/PDF
     # workflow is unavailable (for example, because the generated PDF is too large).
@@ -82,6 +94,7 @@ class ProposalUpdateRequest(BaseModel):
     # Optional note attached to a status change (e.g. why it was sent back to
     # needs_action) — stored as a comment and included in the Telegram notification.
     comment: str | None = None
+    requested_ccas: list[str] | None = None
 
 
 class ProposalOut(BaseModel):
@@ -102,8 +115,10 @@ class ProposalOut(BaseModel):
     poster_content_type: str | None
     status: ProposalStatus
     event_date: date | None
+    event_time: str | None
     created_at: datetime
     updated_at: datetime
+    requested_ccas: list[str] = []
 
 
 class ProposalStatusCounts(BaseModel):
