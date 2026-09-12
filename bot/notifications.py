@@ -4,8 +4,12 @@ notification flow table. Routes call these instead of building message text inli
 from html import escape
 
 from api.config import get_settings
-from api.services.telegram import send_message
+from api.services.telegram import send_message, send_photo
 from api.models import Portfolio, User
+
+# Telegram's sendPhoto caption limit; longer blast messages go as a follow-up
+# text message instead of being silently truncated.
+TELEGRAM_CAPTION_LIMIT = 1024
 
 
 def _admin_ids(portfolio: Portfolio | None = None) -> set[int]:
@@ -93,6 +97,29 @@ async def notify_admins_reminder(sender_name: str, message: str, portfolio: Port
     text = f"🔔 Reminder from <b>{escape(sender_name)}</b>\n\n{escape(message)}"
     for admin_id in _admin_ids(portfolio):
         await send_message(admin_id, text)
+
+
+async def send_proposal_announcement(
+    chat_id: int,
+    poster_data: bytes | None,
+    poster_filename: str | None,
+    blast_message: str | None,
+) -> None:
+    """Sends a finished proposal's poster + blast message to the announcement
+    relay. Raises on failure — unlike the notifications above, this send IS the
+    action the caller asked for, so the caller needs to know if it didn't happen."""
+    if not poster_data and not blast_message:
+        raise ValueError("Nothing to announce: proposal has no poster or blast message")
+
+    text = escape(blast_message) if blast_message else None
+    if poster_data and text and len(text) <= TELEGRAM_CAPTION_LIMIT:
+        await send_photo(chat_id, poster_data, poster_filename or "poster.jpg", text, raise_on_error=True)
+    elif poster_data:
+        await send_photo(chat_id, poster_data, poster_filename or "poster.jpg", raise_on_error=True)
+        if text:
+            await send_message(chat_id, text, raise_on_error=True)
+    else:
+        await send_message(chat_id, text, raise_on_error=True)
 
 
 async def notify_admins_todays_collections(
