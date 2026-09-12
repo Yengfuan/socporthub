@@ -446,6 +446,7 @@ async def announce_proposal(
 def _comment_to_out(c: ProposalComment) -> ProposalCommentOut:
     out = ProposalCommentOut.model_validate(c)
     out.author_name = c.author.display_name or c.author.email
+    out.author_role = c.author.role
     return out
 
 
@@ -467,7 +468,18 @@ def add_comment(
     user: User = Depends(get_current_user),
 ) -> ProposalCommentOut:
     proposal = get_visible_proposal(db, user, proposal_id)
-    comment = ProposalComment(proposal_id=proposal.id, author_id=user.id, body=req.body)
+    if not req.body.strip():
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, "Comment cannot be empty")
+    if req.reply_to_comment_id is not None:
+        parent = db.get(ProposalComment, req.reply_to_comment_id)
+        if not parent or parent.proposal_id != proposal.id:
+            raise HTTPException(status.HTTP_400_BAD_REQUEST, "The comment being replied to was not found")
+    comment = ProposalComment(
+        proposal_id=proposal.id,
+        author_id=user.id,
+        body=req.body.strip(),
+        reply_to_comment_id=req.reply_to_comment_id,
+    )
     db.add(comment)
     db.commit()
     db.refresh(comment)

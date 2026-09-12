@@ -173,6 +173,7 @@ export function renderNewProposal(root, navigate, user) {
       <details class="proposal-section">
         <summary>Media Request</summary>
         <div class="proposal-section-content">
+          <p class="media-autofill-note"><strong>Autofill available:</strong> only Tech Crew and AnG can be autofilled for now.</p>
           <p class="form-disclaimer">Please note: not all fields in the external CCA forms can be filled in automatically. Review each form and complete any remaining fields before submitting it.</p>
           <div class="field" data-poster-field>
             <label for="poster">Poster <span class="field-hint">Required for Event, Initiative, Welfare, and Merch</span></label>
@@ -323,11 +324,11 @@ export async function renderProposalDetail(root, user, proposalId, navigate) {
 
     <div class="card"><h3>Category</h3><p style="color:var(--text)">${escapeHtml(proposal.category.replaceAll("_", " "))}</p>
       ${proposal.blast_message ? `<h3>Blast message</h3><p style="color:var(--text); white-space:pre-wrap;">${escapeHtml(proposal.blast_message)}</p>` : ""}
-      ${proposal.poster_filename ? `<div class="poster-actions">
-        <span class="field-hint">Poster: ${escapeHtml(proposal.poster_filename)}</span>
+      ${proposal.poster_filename ? `<div class="poster-banner">
+        <div><strong>Poster uploaded</strong><span>${escapeHtml(proposal.poster_filename)}</span></div>
         <button class="btn btn-secondary" type="button" data-poster-view>View poster</button>
         <button class="btn btn-secondary" type="button" data-poster-download>Download poster</button>
-      </div>` : ""}
+      </div>` : `<div class="poster-banner poster-banner-empty"><strong>No poster uploaded yet</strong><span>A poster may be required before this proposal can be submitted.</span></div>`}
     </div>
 
     <div class="card">
@@ -388,10 +389,12 @@ export async function renderProposalDetail(root, user, proposalId, navigate) {
 
     <div id="detail-error"></div>
     ${!isAdmin ? `<button class="btn btn-secondary" id="remind-btn" style="margin-top:12px">Remind Admin</button>` : ""}
+    <div id="comments-slot" class="comments-slot"></div>
   `;
 
   renderCommitteeFormsSection(root.querySelector("#committee-forms-slot"), proposal);
   renderDisposableSection(root.querySelector("#disposable-slot"), user, proposal);
+  renderCommentsSection(root.querySelector("#comments-slot"), user, proposal);
   if (proposal.status === "in_review" && usesEmailWorkflow) renderEmailSection(root, user, proposal, navigate);
 
   const posterPath = `/api/proposals/${proposal.id}/poster`;
@@ -529,6 +532,81 @@ async function renderEmailSection(root, user, proposal, navigate) {
   }
 }
 
+async function renderCommentsSection(slot, user, proposal) {
+  if (!slot) return;
+  slot.innerHTML = `<section class="card comments-card"><div class="comments-heading"><div><h3>Comments & review history</h3><p>Keep questions and requested changes here so everyone can follow the proposal.</p></div></div><div class="loading">Loading comments…</div></section>`;
+  try {
+    const comments = await api.get(`/api/proposals/${proposal.id}/comments`);
+    const canReplyToAdmin = user.role !== "admin" && proposal.status === "needs_action";
+    const commentById = new Map(comments.map((comment) => [comment.id, comment]));
+    const commentHtml = comments.length
+      ? comments.map((comment) => {
+          const parent = comment.reply_to_comment_id ? commentById.get(comment.reply_to_comment_id) : null;
+          const isAdminComment = comment.author_role === "admin";
+          return `<article class="comment-item ${isAdminComment ? "comment-admin" : "comment-user"}">
+            <div class="comment-rail"><span class="comment-dot"></span></div>
+            <div class="comment-content">
+              <div class="comment-meta"><strong>${escapeHtml(comment.author_name)}</strong><span>${isAdminComment ? "Admin" : "Submitter"}</span><time>${new Date(comment.created_at).toLocaleString()}</time></div>
+              ${parent ? `<div class="comment-reply-context">Replying to ${escapeHtml(parent.author_name)}: “${escapeHtml(parent.body)}”</div>` : ""}
+              <p>${escapeHtml(comment.body)}</p>
+              ${canReplyToAdmin && isAdminComment ? `<button type="button" class="comment-reply" data-reply-to="${comment.id}">Reply to this comment</button>` : ""}
+            </div>
+          </article>`;
+        }).join("")
+      : `<p class="comments-empty">No comments yet.</p>`;
+    slot.innerHTML = `<section class="card comments-card">
+      <div class="comments-heading"><div><h3>Comments & review history</h3><p>Keep questions and requested changes here so everyone can follow the proposal.</p></div></div>
+      <div class="comment-thread">${commentHtml}</div>
+      <form class="comment-form" id="comment-form">
+        <div class="comment-replying" hidden></div>
+        <label for="new-comment">${canReplyToAdmin ? "Reply or add a comment" : "Add a comment"}</label>
+        <textarea id="new-comment" placeholder="Write a comment…" required></textarea>
+        <input type="hidden" id="reply-to-comment" />
+        <div class="btn-row"><button class="btn" type="submit">Post Comment</button><button class="btn btn-secondary" type="button" id="cancel-reply" hidden>Cancel reply</button></div>
+        <div id="comment-error"></div>
+      </form>
+    </section>`;
+
+    const form = slot.querySelector("#comment-form");
+    const textarea = slot.querySelector("#new-comment");
+    const replyInput = slot.querySelector("#reply-to-comment");
+    const replying = slot.querySelector(".comment-replying");
+    const cancelReply = slot.querySelector("#cancel-reply");
+    slot.querySelectorAll("[data-reply-to]").forEach((button) => button.addEventListener("click", () => {
+      const comment = commentById.get(Number(button.dataset.replyTo));
+      replyInput.value = comment.id;
+      replying.textContent = `Replying to ${comment.author_name}: “${comment.body}”`;
+      replying.hidden = false;
+      cancelReply.hidden = false;
+      textarea.focus();
+    }));
+    cancelReply.addEventListener("click", () => {
+      replyInput.value = "";
+      replying.hidden = true;
+      cancelReply.hidden = true;
+    });
+    form.addEventListener("submit", async (event) => {
+      event.preventDefault();
+      const button = form.querySelector("button[type=submit]");
+      const error = slot.querySelector("#comment-error");
+      button.disabled = true;
+      error.innerHTML = "";
+      try {
+        await api.post(`/api/proposals/${proposal.id}/comments`, {
+          body: textarea.value.trim(),
+          reply_to_comment_id: replyInput.value ? Number(replyInput.value) : null,
+        });
+        await renderCommentsSection(slot, user, proposal);
+      } catch (err) {
+        error.innerHTML = `<div class="error-banner">${escapeHtml(err.message)}</div>`;
+        button.disabled = false;
+      }
+    });
+  } catch (err) {
+    slot.innerHTML = `<section class="card comments-card"><h3>Comments & review history</h3><div class="error-banner">${escapeHtml(err.message)}</div></section>`;
+  }
+}
+
 function renderEditForm(slot, proposal, navigate, onSaved) {
   slot.innerHTML = `
     <form id="edit-form" class="card" style="margin-top:16px">
@@ -570,6 +648,7 @@ function renderEditForm(slot, proposal, navigate, onSaved) {
         <textarea id="e-blast_message">${escapeHtml(proposal.blast_message)}</textarea>
       </div>
       <div class="field">
+        <p class="media-autofill-note"><strong>Autofill available:</strong> only Tech Crew and AnG can be autofilled for now.</p>
         <label for="e-requested_ccas">External CCAs to request (optional)</label>
         <div id="e-requested_ccas" class="cca-request-list">${externalCcaOptions(proposal.requested_ccas || [])}</div>
         <div class="field-hint">Tick one or more CCAs. Expand a CCA to review its configured fields.</div>

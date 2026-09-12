@@ -141,6 +141,7 @@ class ProposalStatusCounts(BaseModel):
 
 class ProposalCommentCreate(BaseModel):
     body: str
+    reply_to_comment_id: int | None = None
 
 
 class ProposalCommentOut(BaseModel):
@@ -150,6 +151,8 @@ class ProposalCommentOut(BaseModel):
     proposal_id: int
     author_id: int
     author_name: str | None = None
+    author_role: UserRole | None = None
+    reply_to_comment_id: int | None = None
     body: str
     created_at: datetime
 

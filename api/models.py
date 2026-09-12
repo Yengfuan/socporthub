@@ -163,11 +163,16 @@ class ProposalComment(Base):
     id: Mapped[int] = mapped_column(primary_key=True)
     proposal_id: Mapped[int] = mapped_column(ForeignKey("proposals.id"), nullable=False)
     author_id: Mapped[int] = mapped_column(ForeignKey("users.id"), nullable=False)
+    reply_to_comment_id: Mapped[int | None] = mapped_column(ForeignKey("proposal_comments.id"), nullable=True)
     body: Mapped[str] = mapped_column(Text, nullable=False)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
 
     proposal: Mapped["Proposal"] = relationship(back_populates="comments")
     author: Mapped["User"] = relationship()
+    reply_to: Mapped["ProposalComment | None"] = relationship(
+        remote_side="ProposalComment.id", back_populates="replies"
+    )
+    replies: Mapped[list["ProposalComment"]] = relationship(back_populates="reply_to")
 
 
 class DisposableRequest(Base):
