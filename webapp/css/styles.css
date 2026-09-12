@@ -261,6 +261,32 @@ a {
   margin-top: var(--space-1);
 }
 
+/* --- Proposal submission sections --- */
+
+.proposal-section {
+  margin-bottom: var(--space-3);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--surface);
+}
+
+.proposal-section summary {
+  padding: var(--space-3) var(--space-4);
+  cursor: pointer;
+  font-weight: 600;
+  list-style-position: inside;
+}
+
+.proposal-section-content {
+  padding: 0 var(--space-4) var(--space-2);
+}
+
+.disposable-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  column-gap: var(--space-3);
+}
+
 /* --- Committee Google Forms test workflow --- */
 
 .committee-form-list {

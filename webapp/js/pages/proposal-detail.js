@@ -89,6 +89,23 @@ function applyCategoryRequirements(root, categoryValue) {
   return { needsPoster, needsDoc, needsBlast, needsEventDate };
 }
 
+async function saveDisposableRequest(proposal, form) {
+  const values = ["plates", "cups", "bowls", "forks", "spoons"].reduce((result, item) => {
+    result[item] = Number(form.querySelector(`#d-${item}`)?.value) || 0;
+    return result;
+  }, {});
+  const collectionDate = form.querySelector("#d-collection_date")?.value || "";
+  const collectionTime = form.querySelector("#d-collection_time")?.value || null;
+  const hasRequest = Object.values(values).some((value) => value > 0) || collectionDate || collectionTime;
+  if (!hasRequest) return;
+  if (!collectionDate) throw new Error("Please provide a collection date for the disposable request.");
+  await api.post(`/api/disposables/${proposal.id}`, {
+    ...values,
+    collection_date: collectionDate,
+    collection_time: collectionTime,
+  });
+}
+
 export function renderNewProposal(root, navigate, user) {
   const saved = {};
   const portfolio = userPortfolio(user);
@@ -98,47 +115,74 @@ export function renderNewProposal(root, navigate, user) {
     </div>
     <h1>New Proposal</h1>
     <form id="proposal-form">
-      <div class="field">
-        <label for="title">Title</label>
-        <input type="text" id="title" name="title" required value="${escapeHtml(saved.title)}" />
-      </div>
-      <div class="field">
-        <label for="category">Category</label>
-        <select id="category" name="category" required>
-          ${categoryOptions(saved.category || (portfolio === "welfare" ? "event" : "pantry_cleaning"), portfolio)}
-        </select>
-      </div>
-      <div class="field">
-        <label for="description">Description</label>
-        <textarea id="description" name="description">${escapeHtml(saved.description)}</textarea>
-      </div>
-      <div class="field">
-        <label for="event_date">Event date <span data-event-date-hint></span></label>
-        <input type="date" id="event_date" name="event_date" value="${escapeHtml(saved.event_date)}" />
-      </div>
-      <div class="field">
-        <label for="event_time">Event time <span data-event-time-hint></span></label>
-        <input type="time" id="event_time" name="event_time" value="${escapeHtml(saved.event_time)}" />
-      </div>
-      <div class="field">
-        <label for="doc_link">Link / PDF URL <span data-doc-hint></span></label>
-        <input type="url" id="doc_link" name="doc_link" placeholder="https://" value="${escapeHtml(saved.doc_link)}" />
-      </div>
-      <div class="field" data-poster-field>
-        <label for="poster">Poster <span class="field-hint">Required for Event, Initiative, Welfare, and Merch</span></label>
-        <input type="file" id="poster" name="poster" accept="image/jpeg,image/png,image/webp,application/pdf" />
-      </div>
-      <div class="field">
-        <label for="blast_message" data-blast-label>Blast message (optional)</label>
-        <textarea id="blast_message" name="blast_message" placeholder="Message to accompany the event announcement">${escapeHtml(saved.blast_message)}</textarea>
-      </div>
-      <div class="field">
-        <label for="requested_ccas">External CCAs to request (optional)</label>
-        <select id="requested_ccas" name="requested_ccas" multiple size="4">
-          ${externalCcaOptions([])}
-        </select>
-        <div class="field-hint">Hold Ctrl (Windows) or Cmd (Mac) to select more than one.</div>
-      </div>
+      <details class="proposal-section" open>
+        <summary>Event Details</summary>
+        <div class="proposal-section-content">
+          <div class="field">
+            <label for="title">Title</label>
+            <input type="text" id="title" name="title" required value="${escapeHtml(saved.title)}" />
+          </div>
+          <div class="field">
+            <label for="category">Category</label>
+            <select id="category" name="category" required>
+              ${categoryOptions(saved.category || (portfolio === "welfare" ? "event" : "pantry_cleaning"), portfolio)}
+            </select>
+          </div>
+          <div class="field">
+            <label for="description">Description</label>
+            <textarea id="description" name="description">${escapeHtml(saved.description)}</textarea>
+          </div>
+          <div class="field">
+            <label for="event_date">Event date <span data-event-date-hint></span></label>
+            <input type="date" id="event_date" name="event_date" value="${escapeHtml(saved.event_date)}" />
+          </div>
+          <div class="field">
+            <label for="event_time">Event time <span data-event-time-hint></span></label>
+            <input type="time" id="event_time" name="event_time" value="${escapeHtml(saved.event_time)}" />
+          </div>
+        </div>
+      </details>
+
+      <details class="proposal-section">
+        <summary>Hall Disposables</summary>
+        <div class="proposal-section-content">
+          <p class="field-hint">Leave quantities at zero if disposables are not needed.</p>
+          <div class="disposable-grid">
+            <div class="field"><label for="d-plates">Plates</label><input type="number" id="d-plates" min="0" value="0" /></div>
+            <div class="field"><label for="d-cups">Cups</label><input type="number" id="d-cups" min="0" value="0" /></div>
+            <div class="field"><label for="d-bowls">Bowls</label><input type="number" id="d-bowls" min="0" value="0" /></div>
+            <div class="field"><label for="d-forks">Forks</label><input type="number" id="d-forks" min="0" value="0" /></div>
+            <div class="field"><label for="d-spoons">Spoons</label><input type="number" id="d-spoons" min="0" value="0" /></div>
+          </div>
+          <div class="field"><label for="d-collection_date">Collection date</label><input type="date" id="d-collection_date" /></div>
+          <div class="field"><label for="d-collection_time">Collection time (optional)</label><input type="time" id="d-collection_time" /></div>
+        </div>
+      </details>
+
+      <details class="proposal-section">
+        <summary>Media Request</summary>
+        <div class="proposal-section-content">
+          <div class="field">
+            <label for="doc_link">Link / PDF URL <span data-doc-hint></span></label>
+            <input type="url" id="doc_link" name="doc_link" placeholder="https://" value="${escapeHtml(saved.doc_link)}" />
+          </div>
+          <div class="field" data-poster-field>
+            <label for="poster">Poster <span class="field-hint">Required for Event, Initiative, Welfare, and Merch</span></label>
+            <input type="file" id="poster" name="poster" accept="image/jpeg,image/png,image/webp,application/pdf" />
+          </div>
+          <div class="field">
+            <label for="blast_message" data-blast-label>Blast message (optional)</label>
+            <textarea id="blast_message" name="blast_message" placeholder="Message to accompany the event announcement">${escapeHtml(saved.blast_message)}</textarea>
+          </div>
+          <div class="field">
+            <label for="requested_ccas">External CCAs to request (optional)</label>
+            <select id="requested_ccas" name="requested_ccas" multiple size="4">
+              ${externalCcaOptions([])}
+            </select>
+            <div class="field-hint">Hold Ctrl (Windows) or Cmd (Mac) to select more than one.</div>
+          </div>
+        </div>
+      </details>
       <div id="form-error"></div>
       <div class="btn-row"><button type="button" class="btn btn-secondary" id="save-draft">Save Draft</button><button type="submit" class="btn">Submit for Review</button></div>
     </form>
@@ -170,6 +214,7 @@ export function renderNewProposal(root, navigate, user) {
         formData.append("poster", poster);
         await api.upload(`/api/proposals/${proposal.id}/poster`, formData);
       }
+      await saveDisposableRequest(proposal, form);
       navigate(`proposal/${proposal.id}`);
     } catch (err) {
       root.querySelector("#form-error").innerHTML = `<div class="error-banner">${escapeHtml(err.message)}</div>`;
@@ -219,6 +264,7 @@ export function renderNewProposal(root, navigate, user) {
         formData.append("poster", poster);
         await api.upload(`/api/proposals/${proposal.id}/poster`, formData);
       }
+      await saveDisposableRequest(proposal, e.target);
       await api.patch(`/api/proposals/${proposal.id}`, { status: "in_review" });
       navigate(`proposal/${proposal.id}`);
     } catch (err) {
