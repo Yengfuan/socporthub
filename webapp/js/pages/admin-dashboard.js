@@ -230,6 +230,37 @@ async function renderUsersSection(content) {
       }
     });
   });
+  content.querySelectorAll("[data-edit-telegram]").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      const form = content.querySelector(`[data-telegram-form="${btn.dataset.editTelegram}"]`);
+      form.hidden = false;
+      btn.hidden = true;
+      form.querySelector("input").focus();
+    });
+  });
+  content.querySelectorAll("[data-cancel-telegram]").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      const form = content.querySelector(`[data-telegram-form="${btn.dataset.cancelTelegram}"]`);
+      form.hidden = true;
+      content.querySelector(`[data-edit-telegram="${btn.dataset.cancelTelegram}"]`).hidden = false;
+    });
+  });
+  content.querySelectorAll("[data-save-telegram]").forEach((form) => {
+    form.addEventListener("submit", async (event) => {
+      event.preventDefault();
+      const button = form.querySelector("button[type=submit]");
+      button.disabled = true;
+      button.textContent = "Saving…";
+      try {
+        await api.patch(`/api/admin/users/${form.dataset.saveTelegram}`, { telegram_username: form.querySelector("input").value });
+        await renderUsersSection(content);
+      } catch (error) {
+        button.disabled = false;
+        button.textContent = "Save";
+        window.alert(error.message);
+      }
+    });
+  });
 }
 
 function userRow(user, committees, { pendingActions }) {
@@ -240,6 +271,7 @@ function userRow(user, committees, { pendingActions }) {
         <div>
           <div class="title">${escapeHtml(user.display_name || user.email)}</div>
           <div style="font-size:12px; color:var(--text-muted)">${escapeHtml(user.email)}</div>
+          <div style="font-size:12px; color:var(--text-muted)">${escapeHtml(user.telegram_username || "No Telegram handle")}</div>
         </div>
         ${statusBadge(user.status)}
       </div>
@@ -251,6 +283,16 @@ function userRow(user, committees, { pendingActions }) {
         <div class="btn-row" style="margin-top:8px;">
           <button class="btn" type="submit">Save</button>
           <button class="btn btn-secondary" type="button" data-cancel-email="${user.id}">Cancel</button>
+        </div>
+      </form>
+
+      <button class="btn btn-secondary" data-edit-telegram="${user.id}" style="margin-top:8px; width:auto;">Edit Telegram handle</button>
+      <form data-telegram-form="${user.id}" data-save-telegram="${user.id}" hidden style="margin-top:12px;">
+        <label style="display:block; font-size:13px; color:var(--text-muted);">Telegram handle</label>
+        <input type="text" required pattern="@?[A-Za-z0-9_]{5,32}" value="${escapeHtml(user.telegram_username || "")}" style="width:100%; margin-top:4px;" />
+        <div class="btn-row" style="margin-top:8px;">
+          <button class="btn" type="submit">Save</button>
+          <button class="btn btn-secondary" type="button" data-cancel-telegram="${user.id}">Cancel</button>
         </div>
       </form>
 

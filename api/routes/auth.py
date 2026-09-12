@@ -1,4 +1,5 @@
 import logging
+import re
 
 from fastapi import APIRouter, Depends, Header, HTTPException, status
 from sqlalchemy.orm import Session
@@ -12,6 +13,14 @@ from bot.notifications import notify_admins_new_registration
 
 router = APIRouter(prefix="/api/auth", tags=["auth"])
 logger = logging.getLogger(__name__)
+TELEGRAM_USERNAME_RE = re.compile(r"^@?[A-Za-z0-9_]{5,32}$")
+
+
+def normalize_telegram_username(value: str) -> str:
+    username = value.strip()
+    if not TELEGRAM_USERNAME_RE.fullmatch(username):
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, "Enter a valid Telegram handle, e.g. @username")
+    return username if username.startswith("@") else f"@{username}"
 
 
 def _to_user_out(user: User) -> UserOut:
@@ -56,6 +65,7 @@ async def register(
 
     user = User(
         telegram_id=identity.telegram_id,
+        telegram_username=normalize_telegram_username(req.telegram_username),
         email=req.email,
         display_name=display_name,
         role=UserRole.admin if is_admin else UserRole.user,

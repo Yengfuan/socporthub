@@ -25,6 +25,11 @@ export function renderRegister(root, onRegistered) {
         <input type="email" id="email" name="email" required placeholder="you@example.com" />
       </div>
       <div class="field">
+        <label for="telegram_username">Telegram handle</label>
+        <input type="text" id="telegram_username" name="telegram_username" required placeholder="@yourusername" pattern="@?[A-Za-z0-9_]{5,32}" />
+        <div class="field-hint">Include the @ if possible.</div>
+      </div>
+      <div class="field">
         <label for="display_name">Display name</label>
         <input type="text" id="display_name" name="display_name" placeholder="How committee members will see you" />
       </div>
@@ -44,6 +49,7 @@ export function renderRegister(root, onRegistered) {
     try {
       const user = await api.post("/api/auth/register", {
         email: e.target.email.value.trim(),
+        telegram_username: e.target.telegram_username.value.trim(),
         display_name: e.target.display_name.value.trim() || null,
       });
       onRegistered(user);

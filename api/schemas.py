@@ -15,6 +15,7 @@ class ValidateResponse(BaseModel):
 
 class RegisterRequest(BaseModel):
     email: EmailStr
+    telegram_username: str
     display_name: str | None = None
 
 
@@ -50,6 +51,7 @@ class UserOut(BaseModel):
 
     id: int
     telegram_id: int
+    telegram_username: str | None
     email: str
     display_name: str | None
     role: UserRole
@@ -60,6 +62,7 @@ class UserOut(BaseModel):
 
 class UserUpdateRequest(BaseModel):
     email: EmailStr | None = None
+    telegram_username: str | None = None
     status: UserStatus | None = None
     committee_ids: list[int] | None = None
 
@@ -108,6 +111,7 @@ class ProposalOut(BaseModel):
     portfolio: Portfolio
     submitted_by: int
     submitter_name: str | None
+    submitter_telegram_username: str | None
     title: str
     category: ProposalCategory
     description: str | None

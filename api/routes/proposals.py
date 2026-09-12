@@ -61,6 +61,7 @@ def _to_out(p: Proposal) -> ProposalOut:
         portfolio=committee_portfolio(p.committee),
         submitted_by=p.submitted_by,
         submitter_name=p.submitter.display_name,
+        submitter_telegram_username=p.submitter.telegram_username,
         title=p.title,
         category=p.category,
         description=p.description,

@@ -95,6 +95,7 @@ class User(Base):
     id: Mapped[int] = mapped_column(primary_key=True)
     telegram_id: Mapped[int] = mapped_column(BigInteger, unique=True, nullable=False)
     email: Mapped[str] = mapped_column(String(255), unique=True, nullable=False)
+    telegram_username: Mapped[str | None] = mapped_column(String(33), unique=True, nullable=True)
     display_name: Mapped[str | None] = mapped_column(String(100))
     role: Mapped[UserRole] = mapped_column(Enum(UserRole, native_enum=False), default=UserRole.user)
     status: Mapped[UserStatus] = mapped_column(Enum(UserStatus, native_enum=False), default=UserStatus.pending)

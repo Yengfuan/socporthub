@@ -5,6 +5,7 @@ from api.auth import get_current_admin
 from api.database import get_db
 from api.models import Committee, EmailDraft, Proposal, User, UserCommittee, UserStatus
 from api.schemas import UserOut, UserUpdateRequest
+from api.routes.auth import normalize_telegram_username
 from bot.notifications import notify_user_registration_approved, notify_user_registration_rejected
 
 router = APIRouter(prefix="/api/admin/users", tags=["admin-users"])
@@ -48,6 +49,13 @@ async def update_user(
         db.query(EmailDraft).filter(EmailDraft.proposal_id.in_(proposal_ids)).update(
             {EmailDraft.recipient: str(req.email)}, synchronize_session=False
         )
+
+    if req.telegram_username is not None:
+        username = normalize_telegram_username(req.telegram_username)
+        existing = db.query(User).filter(User.telegram_username == username, User.id != user.id).first()
+        if existing:
+            raise HTTPException(status.HTTP_409_CONFLICT, "That Telegram handle is already in use")
+        user.telegram_username = username
 
     if req.status is not None:
         user.status = req.status

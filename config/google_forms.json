@@ -53,6 +53,13 @@
         "source": "doc_link",
         "type": "url",
         "required": true
+      },
+      "person_in_charge_telegram": {
+        "label": "Person in Charge's Telegram Tag (Please include the @)",
+        "entry_id": "entry.122568792",
+        "source": "telegram_username",
+        "type": "text",
+        "required": true
       }
     }
   },
@@ -62,7 +69,7 @@
       "requester_name": {
         "label": "Requester name",
         "entry_id": "entry.63867828",
-        "source": "user",
+        "source": "submitter_name",
         "type": "text",
         "required": true
       },
@@ -77,6 +84,13 @@
         "label": "Representing CCA and Position (Eg: Arts and Graphics, Head)",
         "entry_id": "entry.1689792040",
         "source": "committee_name"  ,
+        "type": "text",
+        "required": true
+      },
+      "person_in_charge_telegram": {
+        "label": "Telegram handle (Eg: @Inuka06)",
+        "entry_id": "entry.271623941",
+        "source": "telegram_username",
         "type": "text",
         "required": true
       }

@@ -97,6 +97,7 @@ function prefilledUrl(form, proposal) {
     constant: null,
     submitter_name: proposal.submitter_name || "",
     person_in_charge: proposal.submitter_name || "",
+    telegram_username: proposal.submitter_telegram_username || "",
     committee_name: form.committee_name,
     request_id: String(proposal.id),
   };
