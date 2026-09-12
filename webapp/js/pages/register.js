@@ -21,11 +21,11 @@ export function renderRegister(root, onRegistered) {
     <p>Enter your email to request access. The Social Director will approve you and assign your committee.</p>
     <form id="register-form">
       <div class="field">
-        <label for="email">Email</label>
+        <label for="email">NUS Email</label>
         <input type="email" id="email" name="email" required placeholder="you@example.com" />
       </div>
       <div class="field">
-        <label for="display_name">Display name (optional)</label>
+        <label for="display_name">Display name</label>
         <input type="text" id="display_name" name="display_name" placeholder="How committee members will see you" />
       </div>
       <div id="register-error"></div>
