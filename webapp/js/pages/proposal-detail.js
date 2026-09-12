@@ -560,9 +560,9 @@ async function renderCommentsSection(slot, user, proposal) {
       <form class="comment-form" id="comment-form">
         <div class="comment-replying" hidden></div>
         <label for="new-comment">${canReplyToAdmin ? "Reply or add a comment" : "Add a comment"}</label>
-        <textarea id="new-comment" placeholder="Write a comment…" required></textarea>
+        <textarea id="new-comment" placeholder="Write a comment or update…" required></textarea>
         <input type="hidden" id="reply-to-comment" />
-        <div class="btn-row"><button class="btn" type="submit">Post Comment</button><button class="btn btn-secondary" type="button" id="cancel-reply" hidden>Cancel reply</button></div>
+        <div class="comment-form-footer"><span>Visible to the submitter and admins</span><button class="btn" type="submit">Post Comment</button></div>
         <div id="comment-error"></div>
       </form>
     </section>`;
@@ -571,20 +571,13 @@ async function renderCommentsSection(slot, user, proposal) {
     const textarea = slot.querySelector("#new-comment");
     const replyInput = slot.querySelector("#reply-to-comment");
     const replying = slot.querySelector(".comment-replying");
-    const cancelReply = slot.querySelector("#cancel-reply");
     slot.querySelectorAll("[data-reply-to]").forEach((button) => button.addEventListener("click", () => {
       const comment = commentById.get(Number(button.dataset.replyTo));
       replyInput.value = comment.id;
       replying.textContent = `Replying to ${comment.author_name}: “${comment.body}”`;
       replying.hidden = false;
-      cancelReply.hidden = false;
       textarea.focus();
     }));
-    cancelReply.addEventListener("click", () => {
-      replyInput.value = "";
-      replying.hidden = true;
-      cancelReply.hidden = true;
-    });
     form.addEventListener("submit", async (event) => {
       event.preventDefault();
       const button = form.querySelector("button[type=submit]");

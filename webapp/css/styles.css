@@ -358,10 +358,17 @@ a {
 .comment-admin .comment-meta span { background: var(--amber-bg); color: var(--amber-text); }
 .comment-meta time { color: var(--text-muted); }
 .comment-content p { margin: var(--space-2) 0 0; color: var(--text); white-space: pre-wrap; }
-.comment-reply-context, .comment-replying { margin-top: var(--space-2); padding: var(--space-2) var(--space-3); border-left: 3px solid var(--amber-text); background: #fffbeb; color: var(--text-muted); font-size: 12px; }
+.comment-reply-context, .comment-replying { margin-top: var(--space-2); padding: var(--space-2) var(--space-3); border-left: 3px solid var(--amber-text); border-radius: 0 var(--radius) var(--radius) 0; background: #fffbeb; color: var(--text-muted); font-size: 12px; line-height: 1.4; }
 .comment-reply { margin-top: var(--space-2); padding: 0; border: 0; background: none; color: var(--accent); font: inherit; font-size: 12px; cursor: pointer; }
 .comments-empty { padding: var(--space-3); border: 1px dashed var(--border); border-radius: var(--radius); }
-.comment-form { border-top: 1px solid var(--border); padding-top: var(--space-4); }
+.comment-form { margin-top: var(--space-2); padding: var(--space-4); border: 1px solid var(--border); border-radius: var(--radius); background: #f9fafb; }
+.comment-form label { display: block; margin-bottom: var(--space-2); font-size: 13px; font-weight: 600; }
+.comment-form textarea { min-height: 92px; margin: 0; border-color: #d1d5db; background: var(--surface); box-shadow: 0 1px 2px rgb(0 0 0 / 4%); }
+.comment-form textarea:focus { border-color: var(--accent); outline: 2px solid rgb(37 99 235 / 15%); }
+.comment-form-footer { display: flex; align-items: center; justify-content: space-between; gap: var(--space-3); margin-top: var(--space-3); }
+.comment-form-footer span { color: var(--text-muted); font-size: 11px; line-height: 1.3; }
+.comment-form-footer .btn { width: auto; min-width: 126px; padding: var(--space-2) var(--space-3); font-size: 13px; }
+.comment-form #comment-error { margin-top: var(--space-3); }
 
 .disposable-grid {
   display: grid;
