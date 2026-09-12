@@ -47,7 +47,6 @@ export async function loadCommitteeFormFields(root, proposal = null) {
     panel.querySelector(".cca-request-fields").innerHTML = manualFields.length
       ? manualFields.map(([key, field]) => fieldInput(key, field, values)).join("")
       : `<span class="field-hint">No additional information is needed here. Automatically mapped fields will be added when the form opens.</span>`;
-      .map(([key, field]) => fieldInput(key, field, values)).join("");
   });
 }
 
