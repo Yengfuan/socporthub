@@ -345,7 +345,7 @@ export async function renderProposalDetail(root, user, proposalId, navigate) {
       <h3>Supporting document</h3>
       <p>${
         proposal.doc_link
-          ? `<a href="${escapeHtml(proposal.doc_link)}" target="_blank" rel="noopener">${escapeHtml(
+          ? `<a class="proposal-document-link" href="${escapeHtml(proposal.doc_link)}" target="_blank" rel="noopener">${escapeHtml(
               proposal.doc_link
             )}</a>`
           : "None linked"
@@ -466,7 +466,12 @@ export async function renderProposalDetail(root, user, proposalId, navigate) {
     }
   });
   root.querySelector("#edit-btn")?.addEventListener("click", () => {
-    renderEditForm(root.querySelector("#edit-form-slot"), proposal, navigate);
+    renderEditForm(
+      root.querySelector("#edit-form-slot"),
+      proposal,
+      navigate,
+      () => renderProposalDetail(root, user, proposalId, navigate)
+    );
   });
   root.querySelector("#remind-btn")?.addEventListener("click", async (e) => {
     const message = window.prompt("What should the admin review?");
@@ -524,7 +529,7 @@ async function renderEmailSection(root, user, proposal, navigate) {
   }
 }
 
-function renderEditForm(slot, proposal, navigate) {
+function renderEditForm(slot, proposal, navigate, onSaved) {
   slot.innerHTML = `
     <form id="edit-form" class="card" style="margin-top:16px">
       <div class="field">
@@ -638,9 +643,7 @@ function renderEditForm(slot, proposal, navigate) {
         formData.append("poster", poster);
         await api.upload(`/api/proposals/${proposal.id}/poster`, formData);
       }
-      errorEl.innerHTML = `<div class="success-banner" role="status">Changes saved successfully.</div>`;
-      saveButton.textContent = "Saved";
-      setTimeout(() => navigate(`proposal/${proposal.id}`), 700);
+      await onSaved();
     } catch (err) {
       errorEl.innerHTML = `<div class="error-banner">${err.message}</div>`;
       saveButton.disabled = false;
