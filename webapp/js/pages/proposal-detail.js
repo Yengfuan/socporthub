@@ -218,6 +218,7 @@ export async function renderProposalDetail(root, user, proposalId, navigate) {
   const nextStatusLabel = nextStatus === "finished" && proposal.status === "in_review"
     ? "Approve & Finish"
     : NEXT_STATUS_LABEL[proposal.status];
+  const canSubmitWithoutEmail = isAdmin && proposal.status === "in_review" && usesEmailWorkflow;
   // Owner submits a fresh draft, and resubmits after being sent back to needs_action —
   // both land on in_review. Every other status change is admin-only.
   const canOwnerSubmit = isOwner && ["draft", "needs_action"].includes(proposal.status);
@@ -281,6 +282,9 @@ export async function renderProposalDetail(root, user, proposalId, navigate) {
         ? `<button class="btn" id="advance-btn">${nextStatusLabel}</button>`
         : ""
     }
+    ${canSubmitWithoutEmail
+      ? `<button class="btn btn-secondary" id="submit-without-email" style="margin-top:8px">Mark Submitted Without Email</button>`
+      : ""}
     ${
       isAdmin && proposal.status === "in_review"
         ? `<button class="btn btn-secondary" id="revert-btn" style="margin-top:8px">Send back to Needs Action</button>`
@@ -351,6 +355,9 @@ export async function renderProposalDetail(root, user, proposalId, navigate) {
   root.querySelector("#advance-btn")?.addEventListener("click", async (e) => {
     await changeStatus(e.target, nextStatus);
   });
+  root.querySelector("#submit-without-email")?.addEventListener("click", async (e) => {
+    await changeStatus(e.target, "submitted", { send_email: false });
+  });
   root.querySelector("#revert-btn")?.addEventListener("click", async (e) => {
     await changeStatus(e.target, "needs_action");
   });
@@ -370,12 +377,12 @@ export async function renderProposalDetail(root, user, proposalId, navigate) {
     }
   });
 
-  async function changeStatus(btn, newStatus) {
+  async function changeStatus(btn, newStatus, options = {}) {
     btn.disabled = true;
     const errorEl = root.querySelector("#detail-error");
     const comment = root.querySelector("#status-comment")?.value.trim() || null;
     try {
-      await api.patch(`/api/proposals/${proposal.id}`, { status: newStatus, comment });
+      await api.patch(`/api/proposals/${proposal.id}`, { status: newStatus, comment, ...options });
       renderProposalDetail(root, user, proposalId, navigate);
     } catch (err) {
       errorEl.innerHTML = `<div class="error-banner">${err.message}</div>`;

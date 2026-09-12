@@ -76,6 +76,9 @@ class ProposalUpdateRequest(BaseModel):
     blast_message: str | None = None
     event_date: date | None = None
     status: ProposalStatus | None = None
+    # Admin-only escape hatch for submitting a proposal when the email/PDF
+    # workflow is unavailable (for example, because the generated PDF is too large).
+    send_email: bool = True
     # Optional note attached to a status change (e.g. why it was sent back to
     # needs_action) — stored as a comment and included in the Telegram notification.
     comment: str | None = None

@@ -1,5 +1,6 @@
 from fastapi import APIRouter, Depends, File, HTTPException, UploadFile, status
 from fastapi.responses import Response
+from fastapi import Query
 from sqlalchemy.orm import Session
 
 from api.auth import get_current_user
@@ -33,7 +34,8 @@ from bot.notifications import (
     notify_user_status_change,
 )
 from api.routes.email import _committee_ccs, _generated, _without_links
-from api.services.google_docs import download_google_doc_pdf, proposal_pdf_filename
+from api.services.google_docs import PDF_ATTACHMENT_LIMIT_BYTES, download_google_doc_pdf, proposal_pdf_filename
+from api.services.document_links import document_download_url, verify_document_token
 from api.services.resend_email import send_email
 
 router = APIRouter(prefix="/api/proposals", tags=["proposals"])
@@ -214,6 +216,8 @@ async def update_proposal(
         )
         if not is_admin and not owner_can_submit:
             raise HTTPException(status.HTTP_403_FORBIDDEN, "Only admins can change status")
+        if not req.send_email and (not is_admin or req.status != ProposalStatus.submitted):
+            raise HTTPException(status.HTTP_403_FORBIDDEN, "Only admins can submit without sending an email")
         allowed = PROPOSAL_STATUS_TRANSITIONS.get(proposal.status, set())
         if req.status not in allowed:
             raise HTTPException(
@@ -282,7 +286,7 @@ async def update_proposal(
     # Approval has an external side effect (PDF export + email). Keep the status
     # change pending until that side effect succeeds, so a failed email does not
     # falsely tell the admin that the proposal was submitted.
-    sends_confirmation_email = req.status == ProposalStatus.submitted and should_send_confirmation_email(
+    sends_confirmation_email = req.status == ProposalStatus.submitted and req.send_email and should_send_confirmation_email(
         proposal.committee, proposal.category
     )
     if not sends_confirmation_email:
@@ -305,13 +309,20 @@ async def update_proposal(
         else:
             subject, body = _generated(proposal)
         attachment = None
+        large_pdf_link = None
         if proposal.doc_link:
             _, pdf = await download_google_doc_pdf(proposal.doc_link)
-            attachment = (proposal_pdf_filename(proposal.title, proposal.committee.name), pdf)
+            if len(pdf) <= PDF_ATTACHMENT_LIMIT_BYTES:
+                attachment = (proposal_pdf_filename(proposal.title, proposal.committee.name), pdf)
+            else:
+                large_pdf_link = document_download_url(proposal.id)
+        safe_body = _without_links(body)
+        if large_pdf_link:
+            safe_body += f"\n\nThe proposal PDF is too large to attach. Download it here: {large_pdf_link}"
         await send_email(
             to=proposal.submitter.email,
             subject=_without_links(subject),
-            body=_without_links(body),
+            body=safe_body,
             cc=_committee_ccs(proposal),
             attachment=attachment,
         )
@@ -349,6 +360,24 @@ async def upload_poster(
     db.commit()
     db.refresh(proposal)
     return _to_out(proposal)
+
+
+@router.get("/{proposal_id}/document")
+async def download_document(
+    proposal_id: int,
+    token: str = Query(...),
+    db: Session = Depends(get_db),
+) -> Response:
+    verify_document_token(token, proposal_id)
+    proposal = db.get(Proposal, proposal_id)
+    if not proposal or not proposal.doc_link:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Supporting document not found")
+    _, pdf = await download_google_doc_pdf(proposal.doc_link)
+    return Response(
+        content=pdf,
+        media_type="application/pdf",
+        headers={"Content-Disposition": f'attachment; filename="{proposal_pdf_filename(proposal.title, proposal.committee.name)}"'},
+    )
 
 
 @router.get("/{proposal_id}/poster")

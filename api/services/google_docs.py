@@ -8,6 +8,7 @@ from fastapi import HTTPException, status
 
 
 GOOGLE_DOC_RE = re.compile(r"^/document/d/([A-Za-z0-9_-]+)(?:/|$)")
+PDF_ATTACHMENT_LIMIT_BYTES = 25 * 1024 * 1024
 
 
 def proposal_pdf_filename(event_name: str, committee_name: str) -> str:
@@ -43,6 +44,4 @@ async def download_google_doc_pdf(link: str) -> tuple[str, bytes]:
 
     if response.headers.get("content-type", "").split(";", 1)[0].lower() != "application/pdf":
         raise HTTPException(status.HTTP_400_BAD_REQUEST, "The Google Doc did not return a PDF")
-    if len(response.content) > 10 * 1024 * 1024:
-        raise HTTPException(status.HTTP_413_REQUEST_ENTITY_TOO_LARGE, "The generated PDF must be 10 MB or smaller")
     return f"{match.group(1)}.pdf", response.content
