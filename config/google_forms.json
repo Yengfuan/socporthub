@@ -1,0 +1,49 @@
+{
+  "BOP": { "url": "", "fields": {} },
+  "Tech Crew": {
+    "url": "https://docs.google.com/forms/d/e/1FAIpQLSd5JY2qItAhfAAQXkealSJ-f8cSXvEedt50JTqQn3-BuVfxRQ/viewform?usp=header",
+    "fields": {
+      "event_name": {
+        "label": "Event name",
+        "entry_id": "entry.582035954",
+        "source": "title",
+        "type": "text",
+        "required": true
+      },
+      "dates": {
+        "label": "Date(s)",
+        "entry_id": "entry.1002739216",
+        "source": "event_date",
+        "type": "date",
+        "required": true
+      },
+      "times": {
+        "label": "Time(s)",
+        "entry_id": "entry.1296017460",
+        "source": "event_time",
+        "type": "time",
+        "required": true
+      },
+      "nature_of_event": {
+        "label": "Nature of event",
+        "entry_id": "entry.1107738995",
+        "source": "committee_and_category",
+        "type": "text",
+        "required": true
+      },
+      "additional_documentation": {
+        "label": "URL to any additional documentations (event rundown, schedule, action plan etc)",
+        "entry_id": "entry.163225816",
+        "source": "doc_link",
+        "type": "url",
+        "required": true
+      }
+    }
+  },
+  "AnG": { "url": "", "fields": {} },
+  "BnC": { "url": "", "fields": {} },
+  "Devs": { "url": "", "fields": {} },
+  "Commotion": { "url": "", "fields": {} },
+  "PP": { "url": "", "fields": {} },
+  "PS": { "url": "", "fields": {} }
+}

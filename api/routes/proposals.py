@@ -6,6 +6,7 @@ from fastapi import Query
 from sqlalchemy.orm import Session
 
 from api.auth import get_current_user
+from api.config import get_settings
 from api.database import get_db
 from api.models import (
     PROPOSAL_STATUS_TRANSITIONS,
@@ -34,6 +35,7 @@ from api.schemas import (
 from bot.notifications import (
     notify_admins_new_proposal,
     notify_user_status_change,
+    send_proposal_announcement,
 )
 from api.routes.email import _committee_ccs, _generated, _without_links
 from api.services.google_docs import PDF_ATTACHMENT_LIMIT_BYTES, download_google_doc_pdf, proposal_pdf_filename
@@ -48,6 +50,10 @@ def _to_out(p: Proposal) -> ProposalOut:
         requested_ccas = json.loads(p.requested_ccas or "[]")
     except json.JSONDecodeError:
         requested_ccas = []
+    try:
+        external_form_data = json.loads(p.external_form_data or "{}")
+    except json.JSONDecodeError:
+        external_form_data = {}
     return ProposalOut(
         id=p.id,
         committee_id=p.committee_id,
@@ -68,6 +74,7 @@ def _to_out(p: Proposal) -> ProposalOut:
         created_at=p.created_at,
         updated_at=p.updated_at,
         requested_ccas=requested_ccas if isinstance(requested_ccas, list) else [],
+        external_form_data=external_form_data if isinstance(external_form_data, dict) else {},
     )
 
 
@@ -175,6 +182,7 @@ async def create_proposal(
         event_date=req.event_date,
         event_time=req.event_time,
         requested_ccas=json.dumps(req.requested_ccas),
+        external_form_data=json.dumps(req.external_form_data),
         status=ProposalStatus.draft if req.save_draft else ProposalStatus.in_review,
     )
     db.add(proposal)
@@ -250,7 +258,7 @@ async def update_proposal(
         was_awaiting_review = proposal.status in (ProposalStatus.draft, ProposalStatus.needs_action)
         proposal.status = req.status
 
-    content_fields = ("category", "title", "description", "doc_link", "blast_message", "event_date", "event_time", "requested_ccas")
+    content_fields = ("category", "title", "description", "doc_link", "blast_message", "event_date", "event_time", "requested_ccas", "external_form_data")
     # Use model_fields_set (not "is not None") so a client can explicitly clear a
     # nullable field — e.g. {"event_date": null} — by including the key in the payload.
     # Omitting the key entirely means "leave this field alone".
@@ -268,7 +276,7 @@ async def update_proposal(
                 raise HTTPException(status.HTTP_400_BAD_REQUEST, "That category is not available for this portfolio")
         for field in provided_content_fields:
             value = getattr(req, field)
-            setattr(proposal, field, json.dumps(value) if field == "requested_ccas" else value)
+            setattr(proposal, field, json.dumps(value) if field in ("requested_ccas", "external_form_data") else value)
 
     if req.status == ProposalStatus.in_review:
         _validate_category_requirements(
@@ -404,6 +412,34 @@ def download_poster(proposal_id: int, db: Session = Depends(get_db), user: User 
         media_type=proposal.poster_content_type,
         headers={"Content-Disposition": f'inline; filename="{proposal.poster_filename or "poster"}"'},
     )
+
+
+@router.post("/{proposal_id}/announce", status_code=status.HTTP_204_NO_CONTENT)
+async def announce_proposal(
+    proposal_id: int,
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
+) -> Response:
+    proposal = get_visible_proposal(db, user, proposal_id)
+    if proposal.status != ProposalStatus.finished:
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, "Only finished proposals can be announced")
+    if proposal.category not in (ProposalCategory.event, ProposalCategory.initiative):
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, "Only event and initiative proposals can be announced")
+
+    chat_id = get_settings().announcement_telegram_id
+    if not chat_id:
+        raise HTTPException(status.HTTP_503_SERVICE_UNAVAILABLE, "Announcement channel is not configured")
+
+    try:
+        await send_proposal_announcement(chat_id, proposal.poster_data, proposal.poster_filename, proposal.blast_message)
+    except ValueError as exc:
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, str(exc))
+    except Exception:
+        raise HTTPException(
+            status.HTTP_502_BAD_GATEWAY,
+            "Failed to reach the announcement bot — it may need to be messaged/registered first",
+        )
+    return Response(status_code=status.HTTP_204_NO_CONTENT)
 
 
 def _comment_to_out(c: ProposalComment) -> ProposalCommentOut:

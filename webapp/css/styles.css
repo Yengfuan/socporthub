@@ -287,6 +287,31 @@ a {
   column-gap: var(--space-3);
 }
 
+.cca-request-list {
+  display: grid;
+  gap: var(--space-2);
+}
+
+.cca-request-panel {
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--surface);
+}
+
+.cca-request-panel summary {
+  padding: var(--space-3);
+  cursor: pointer;
+  font-weight: 600;
+}
+
+.cca-request-panel summary label {
+  cursor: pointer;
+}
+
+.cca-request-fields {
+  padding: 0 var(--space-3) var(--space-3);
+}
+
 /* --- Committee Google Forms test workflow --- */
 
 .committee-form-list {

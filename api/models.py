@@ -141,6 +141,8 @@ class Proposal(Base):
     event_time: Mapped[time | None] = mapped_column(Time)
     # JSON-encoded names of external CCAs whose forms are part of this request.
     requested_ccas: Mapped[str | None] = mapped_column(Text, nullable=True)
+    # JSON-encoded manual values for configured external form fields.
+    external_form_data: Mapped[str | None] = mapped_column(Text, nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
     updated_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), onupdate=func.now()

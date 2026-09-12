@@ -41,7 +41,7 @@ class CommitteeFormOut(BaseModel):
     committee_id: int | None = None
     committee_name: str
     url: str | None = None
-    fields: dict[str, str] = {}
+    fields: dict[str, dict] = {}
     sections: list[str] = []
 
 
@@ -77,6 +77,7 @@ class ProposalCreateRequest(BaseModel):
     event_date: date | None = None
     event_time: time | None = None
     requested_ccas: list[str] = []
+    external_form_data: dict[str, dict] = {}
 
 
 class ProposalUpdateRequest(BaseModel):
@@ -95,6 +96,7 @@ class ProposalUpdateRequest(BaseModel):
     # needs_action) — stored as a comment and included in the Telegram notification.
     comment: str | None = None
     requested_ccas: list[str] | None = None
+    external_form_data: dict[str, dict] | None = None
 
 
 class ProposalOut(BaseModel):
@@ -119,6 +121,7 @@ class ProposalOut(BaseModel):
     created_at: datetime
     updated_at: datetime
     requested_ccas: list[str] = []
+    external_form_data: dict[str, dict] = {}
 
 
 class ProposalStatusCounts(BaseModel):

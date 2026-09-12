@@ -22,6 +22,44 @@ function setStatus(proposalId, formKey, status) {
   localStorage.setItem(storageKey(proposalId, formKey), status);
 }
 
+function fieldInput(fieldKey, field, values = {}) {
+  const type = ["text", "date", "time", "number", "email", "url"].includes(field.type) ? field.type : "text";
+  const value = values[fieldKey] || "";
+  const isManual = field.source === "manual";
+  const label = `${escapeHtml(field.label)}${!isManual ? " (auto-filled)" : ""}${field.required ? " *" : ""}`;
+  const options = field.options?.length
+    ? field.options.map((option) => `<option value="${escapeHtml(option)}" ${value === option ? "selected" : ""}>${escapeHtml(option)}</option>`).join("")
+    : "";
+  const control = options
+    ? `<select data-external-field="${escapeHtml(fieldKey)}">${options}</select>`
+    : `<input type="${type}" data-external-field="${escapeHtml(fieldKey)}" value="${escapeHtml(value)}" ${isManual && field.required ? "required" : ""} ${!isManual ? "readonly" : ""} />`;
+  return `<div class="field"><label>${label}</label>${control}</div>`;
+}
+
+export async function loadCommitteeFormFields(root, proposal = null) {
+  const forms = await api.get("/api/committees/forms");
+  const byKey = new Map(forms.map((form) => [form.form_key, form]));
+  root.querySelectorAll(".cca-request-panel").forEach((panel) => {
+    const form = byKey.get(panel.dataset.cca);
+    if (!form || !Object.keys(form.fields || {}).length) return;
+    const values = proposal?.external_form_data?.[form.form_key] || {};
+    panel.querySelector(".cca-request-fields").innerHTML = Object.entries(form.fields)
+      .map(([key, field]) => fieldInput(key, field, values)).join("");
+  });
+}
+
+export function collectExternalFormData(root) {
+  const data = {};
+  root.querySelectorAll(".cca-request-panel").forEach((panel) => {
+    const values = {};
+    panel.querySelectorAll("[data-external-field]").forEach((input) => {
+      values[input.dataset.externalField] = input.value;
+    });
+    if (Object.keys(values).length) data[panel.dataset.cca] = values;
+  });
+  return data;
+}
+
 function formCard(form, proposal) {
   const status = getStatus(proposal.id, form.form_key);
   const sections = form.sections?.length
@@ -35,11 +73,35 @@ function formCard(form, proposal) {
     </div>
     <div class="committee-form-actions">
       ${form.url
-        ? `<a class="btn btn-secondary" data-open-form href="${escapeHtml(form.url)}" target="_blank" rel="noopener">Open form</a>`
+        ? `<a class="btn btn-secondary" data-open-form href="${escapeHtml(prefilledUrl(form, proposal))}" target="_blank" rel="noopener">Open form</a>`
         : `<button class="btn btn-secondary" type="button" disabled>Link not configured</button>`}
       <button class="btn" type="button" data-complete-form>${status === "completed" ? "Mark incomplete" : "Mark complete"}</button>
     </div>
   </div>`;
+}
+
+function prefilledUrl(form, proposal) {
+  const url = new URL(form.url);
+  url.searchParams.set("usp", "pp_url");
+  const stored = proposal.external_form_data?.[form.form_key] || {};
+  const sourceValues = {
+    title: proposal.title,
+    event_name: proposal.title,
+    description: proposal.description || "",
+    event_date: proposal.event_date || "",
+    event_time: proposal.event_time || "",
+    doc_link: proposal.doc_link || "",
+    committee_and_category: `${proposal.committee_name} - ${proposal.category.replaceAll("_", " ")}`,
+    submitter_name: proposal.submitter_name || "",
+    person_in_charge: proposal.submitter_name || "",
+    committee_name: form.committee_name,
+    request_id: String(proposal.id),
+  };
+  Object.entries(form.fields || {}).forEach(([key, field]) => {
+    const value = field.source && field.source !== "manual" ? sourceValues[field.source] : stored[key];
+    if (field.entry_id && value !== undefined && value !== "") url.searchParams.set(field.entry_id, value);
+  });
+  return url.toString();
 }
 
 export async function renderCommitteeFormsSection(slot, proposal) {

@@ -1,7 +1,7 @@
 import { api } from "../api.js";
 import { statusBadge } from "../components/status-badge.js";
 import { renderDisposableSection } from "../components/disposable-form.js";
-import { renderCommitteeFormsSection } from "../components/committee-forms.js";
+import { collectExternalFormData, loadCommitteeFormFields, renderCommitteeFormsSection } from "../components/committee-forms.js";
 
 const NEXT_STATUS = {
   draft: "in_review",
@@ -43,7 +43,10 @@ const EXTERNAL_CCAS = ["BOP", "Tech Crew", "AnG", "BnC", "Devs", "Commotion", "P
 
 function externalCcaOptions(selected = []) {
   return EXTERNAL_CCAS
-    .map((cca) => `<option value="${escapeHtml(cca)}" ${selected.includes(cca) ? "selected" : ""}>${escapeHtml(cca)}</option>`)
+    .map((cca) => `<details class="cca-request-panel" data-cca="${escapeHtml(cca)}">
+      <summary><label><input type="checkbox" name="requested_ccas" value="${escapeHtml(cca)}" ${selected.includes(cca) ? "checked" : ""} /> ${escapeHtml(cca)}</label></summary>
+      <div class="cca-request-fields"><span class="field-hint">Loading configured fields…</span></div>
+    </details>`)
     .join("");
 }
 
@@ -155,7 +158,7 @@ export function renderNewProposal(root, navigate, user) {
             <div class="field"><label for="d-spoons">Spoons</label><input type="number" id="d-spoons" min="0" value="0" /></div>
           </div>
           <div class="field"><label for="d-collection_date">Collection date</label><input type="date" id="d-collection_date" /></div>
-          <div class="field"><label for="d-collection_time">Collection time (optional)</label><input type="time" id="d-collection_time" /></div>
+          <div class="field"><label for="d-collection_time">Collection time</label><input type="time" id="d-collection_time" /></div>
         </div>
       </details>
 
@@ -176,10 +179,10 @@ export function renderNewProposal(root, navigate, user) {
           </div>
           <div class="field">
             <label for="requested_ccas">External CCAs to request (optional)</label>
-            <select id="requested_ccas" name="requested_ccas" multiple size="4">
-              ${externalCcaOptions([])}
-            </select>
-            <div class="field-hint">Hold Ctrl (Windows) or Cmd (Mac) to select more than one.</div>
+        <div id="requested_ccas" class="cca-request-list">
+          ${externalCcaOptions([])}
+        </div>
+        <div class="field-hint">Tick one or more CCAs. Expand a CCA to review its configured fields.</div>
           </div>
         </div>
       </details>
@@ -192,6 +195,11 @@ export function renderNewProposal(root, navigate, user) {
   const category = root.querySelector("#category");
   category.addEventListener("change", () => applyCategoryRequirements(root, category.value));
   applyCategoryRequirements(root, category.value);
+  loadCommitteeFormFields(root).catch((error) => {
+    root.querySelectorAll(".cca-request-fields").forEach((slot) => {
+      slot.innerHTML = `<span class="field-hint">Could not load configured fields: ${escapeHtml(error.message)}</span>`;
+    });
+  });
 
   root.querySelector("#save-draft").addEventListener("click", async () => {
     const saveButton = root.querySelector("#save-draft");
@@ -205,7 +213,8 @@ export function renderNewProposal(root, navigate, user) {
         event_time: form.event_time.value || null,
         doc_link: form.doc_link.value.trim() || null,
         blast_message: form.blast_message.value.trim() || null,
-        requested_ccas: Array.from(form.requested_ccas.selectedOptions).map((option) => option.value),
+        requested_ccas: Array.from(form.querySelectorAll("input[name=requested_ccas]:checked")).map((option) => option.value),
+        external_form_data: collectExternalFormData(form),
         save_draft: true,
       });
       const poster = form.poster.files[0];
@@ -256,7 +265,8 @@ export function renderNewProposal(root, navigate, user) {
         event_time: e.target.event_time.value || null,
         doc_link: e.target.doc_link.value.trim() || null,
         blast_message: e.target.blast_message.value.trim() || null,
-        requested_ccas: Array.from(e.target.requested_ccas.selectedOptions).map((option) => option.value),
+        requested_ccas: Array.from(e.target.querySelectorAll("input[name=requested_ccas]:checked")).map((option) => option.value),
+        external_form_data: collectExternalFormData(e.target),
         save_draft: true,
       });
       if (poster) {
@@ -366,6 +376,11 @@ export async function renderProposalDetail(root, user, proposalId, navigate) {
         ? `<button class="btn btn-secondary" id="revert-btn" style="margin-top:8px">Send back to Needs Action</button>`
         : ""
     }
+    ${
+      proposal.status === "finished" && ["event", "initiative"].includes(proposal.category)
+        ? `<button class="btn btn-secondary" id="announce-btn" style="margin-top:8px">Send Announcement</button>`
+        : ""
+    }
 
     <div id="detail-error"></div>
     <div id="edit-form-slot"></div>
@@ -437,6 +452,16 @@ export async function renderProposalDetail(root, user, proposalId, navigate) {
   });
   root.querySelector("#revert-btn")?.addEventListener("click", async (e) => {
     await changeStatus(e.target, "needs_action");
+  });
+  root.querySelector("#announce-btn")?.addEventListener("click", async (e) => {
+    e.target.disabled = true;
+    try {
+      await api.post(`/api/proposals/${proposal.id}/announce`, {});
+      e.target.textContent = "Announcement sent";
+    } catch (err) {
+      root.querySelector("#detail-error").innerHTML = `<div class="error-banner">${escapeHtml(err.message)}</div>`;
+      e.target.disabled = false;
+    }
   });
   root.querySelector("#edit-btn")?.addEventListener("click", () => {
     renderEditForm(root.querySelector("#edit-form-slot"), proposal, navigate);
@@ -539,8 +564,8 @@ function renderEditForm(slot, proposal, navigate) {
       </div>
       <div class="field">
         <label for="e-requested_ccas">External CCAs to request (optional)</label>
-        <select id="e-requested_ccas" multiple size="4">${externalCcaOptions(proposal.requested_ccas || [])}</select>
-        <div class="field-hint">Hold Ctrl (Windows) or Cmd (Mac) to select more than one.</div>
+        <div id="e-requested_ccas" class="cca-request-list">${externalCcaOptions(proposal.requested_ccas || [])}</div>
+        <div class="field-hint">Tick one or more CCAs. Expand a CCA to review its configured fields.</div>
       </div>
       <div id="edit-error"></div>
       <div class="btn-row">
@@ -554,6 +579,7 @@ function renderEditForm(slot, proposal, navigate) {
   const category = slot.querySelector("#e-category");
   category.addEventListener("change", () => applyCategoryRequirements(slot, category.value));
   applyCategoryRequirements(slot, category.value);
+  loadCommitteeFormFields(slot, proposal).catch(() => {});
 
   slot.querySelector("#edit-cancel").addEventListener("click", () => {
     slot.innerHTML = "";
@@ -602,7 +628,8 @@ function renderEditForm(slot, proposal, navigate) {
         event_time: slot.querySelector("#e-event_time").value || null,
         doc_link: slot.querySelector("#e-doc_link").value.trim() || null,
         blast_message: slot.querySelector("#e-blast_message").value.trim() || null,
-        requested_ccas: Array.from(slot.querySelector("#e-requested_ccas").selectedOptions).map((option) => option.value),
+        requested_ccas: Array.from(slot.querySelectorAll("input[name=requested_ccas]:checked")).map((option) => option.value),
+        external_form_data: collectExternalFormData(slot),
       });
       if (poster) {
         const formData = new FormData();

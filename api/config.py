@@ -35,6 +35,11 @@ class Settings(BaseSettings):
     # "fields":{"request_id":"entry.123"},"sections":["Request","Budget"]}}
     google_form_configs: str = "{}"
 
+    # Telegram id to send finished event/initiative announcements to — in practice
+    # a separate relay bot that posts into the announcement channel, not our own
+    # bot. 0 means announcing is disabled.
+    announcement_telegram_id: int = 0
+
     @property
     def admin_telegram_id_set(self) -> set[int]:
         return {
