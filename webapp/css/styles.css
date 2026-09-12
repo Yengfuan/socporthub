@@ -419,6 +419,18 @@ a {
   flex: 1;
 }
 
+.page-header-actions {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.proposal-edit-top {
+  width: auto;
+  padding: var(--space-2) var(--space-3);
+  font-size: 13px;
+}
+
 .fab {
   position: fixed;
   bottom: 76px;

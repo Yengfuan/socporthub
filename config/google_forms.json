@@ -56,7 +56,31 @@
       }
     }
   },
-  "AnG": { "url": "", "fields": {} },
+  "AnG": { 
+    "url": "https://docs.google.com/forms/d/e/1FAIpQLSdcMhheZQR_gsAL3s09RjwSTy10btn6mX-BCS40HijuaDGeEw/viewform?usp=header", 
+    "fields": {
+      "requester_name": {
+        "label": "Requester name",
+        "entry_id": "entry.63867828",
+        "source": "user",
+        "type": "text",
+        "required": true
+      },
+      "dates": {
+        "label": "Expected fulfillment date (Date of event for live events)",
+        "entry_id": "entry.923634800",
+        "source": "event_date",
+        "type": "date",
+        "required": true
+      },
+      "cca_requesting": {
+        "label": "Representing CCA and Position (Eg: Arts and Graphics, Head)",
+        "entry_id": "entry.1689792040",
+        "source": "committee_name"  ,
+        "type": "text",
+        "required": true
+      }
+    } },
   "BnC": { "url": "", "fields": {} },
   "Devs": { "url": "", "fields": {} },
   "Commotion": { "url": "", "fields": {} },

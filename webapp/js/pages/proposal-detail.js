@@ -310,11 +310,16 @@ export async function renderProposalDetail(root, user, proposalId, navigate) {
   root.innerHTML = `
     <div class="page-header">
       <span class="back" data-nav="${isAdmin ? "admin" : "home"}">&larr; Back</span>
-      ${statusBadge(proposal.status)}
+      <div class="page-header-actions">
+        ${statusBadge(proposal.status)}
+        ${canEdit ? `<button class="btn btn-secondary proposal-edit-top" id="edit-btn">Edit Proposal</button>` : ""}
+      </div>
     </div>
 
     <h1>${escapeHtml(proposal.title)}</h1>
     <p>${escapeHtml(proposal.committee_name)} · Submitted by ${escapeHtml(proposal.submitter_name || "")}</p>
+
+    ${canEdit ? `<div id="edit-form-slot"></div>` : ""}
 
     <div class="card"><h3>Category</h3><p style="color:var(--text)">${escapeHtml(proposal.category.replaceAll("_", " "))}</p>
       ${proposal.blast_message ? `<h3>Blast message</h3><p style="color:var(--text); white-space:pre-wrap;">${escapeHtml(proposal.blast_message)}</p>` : ""}
@@ -350,8 +355,6 @@ export async function renderProposalDetail(root, user, proposalId, navigate) {
     <div id="committee-forms-slot"></div>
     <div id="disposable-slot"></div>
 
-    ${canEdit ? `<button class="btn btn-secondary" id="edit-btn">Edit Proposal</button>` : ""}
-
     ${
       // Only shown alongside an actual admin action button below — otherwise it's a
       // dead field with nothing to attach the note to.
@@ -384,8 +387,6 @@ export async function renderProposalDetail(root, user, proposalId, navigate) {
     }
 
     <div id="detail-error"></div>
-    <div id="edit-form-slot"></div>
-
     ${!isAdmin ? `<button class="btn btn-secondary" id="remind-btn" style="margin-top:12px">Remind Admin</button>` : ""}
   `;
 
