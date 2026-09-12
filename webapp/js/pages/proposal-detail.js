@@ -143,6 +143,14 @@ export function renderNewProposal(root, navigate, user) {
             <label for="event_time">Event time <span data-event-time-hint></span></label>
             <input type="time" id="event_time" name="event_time" value="${escapeHtml(saved.event_time)}" />
           </div>
+          <div class="field">
+            <label for="doc_link">Link / PDF URL <span data-doc-hint></span></label>
+            <input type="url" id="doc_link" name="doc_link" placeholder="https://" value="${escapeHtml(saved.doc_link)}" />
+          </div>
+          <div class="field">
+            <label for="blast_message" data-blast-label>Blast message (optional)</label>
+            <textarea id="blast_message" name="blast_message" placeholder="Message to accompany the event announcement">${escapeHtml(saved.blast_message)}</textarea>
+          </div>
         </div>
       </details>
 
@@ -165,17 +173,10 @@ export function renderNewProposal(root, navigate, user) {
       <details class="proposal-section">
         <summary>Media Request</summary>
         <div class="proposal-section-content">
-          <div class="field">
-            <label for="doc_link">Link / PDF URL <span data-doc-hint></span></label>
-            <input type="url" id="doc_link" name="doc_link" placeholder="https://" value="${escapeHtml(saved.doc_link)}" />
-          </div>
+          <p class="form-disclaimer">Please note: not all fields in the external CCA forms can be filled in automatically. Review each form and complete any remaining fields before submitting it.</p>
           <div class="field" data-poster-field>
             <label for="poster">Poster <span class="field-hint">Required for Event, Initiative, Welfare, and Merch</span></label>
             <input type="file" id="poster" name="poster" accept="image/jpeg,image/png,image/webp,application/pdf" />
-          </div>
-          <div class="field">
-            <label for="blast_message" data-blast-label>Blast message (optional)</label>
-            <textarea id="blast_message" name="blast_message" placeholder="Message to accompany the event announcement">${escapeHtml(saved.blast_message)}</textarea>
           </div>
           <div class="field">
             <label for="requested_ccas">External CCAs to request (optional)</label>

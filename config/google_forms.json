@@ -31,6 +31,22 @@
         "type": "text",
         "required": true
       },
+      "services_needed": {
+        "label": "Which service(s) do you need from us?",
+        "entry_id": "entry.1948366114",
+        "source": "constant",
+        "value": "General/Block Events",
+        "type": "select",
+        "options": ["General/Block Events"],
+        "required": true
+      },
+      "cca_requesting": {
+        "label": "CCA requesting",
+        "entry_id": "entry.1348853237",
+        "source": "committee_name",
+        "type": "text",
+        "required": true
+      },
       "additional_documentation": {
         "label": "URL to any additional documentations (event rundown, schedule, action plan etc)",
         "entry_id": "entry.163225816",

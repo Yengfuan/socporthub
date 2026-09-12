@@ -65,6 +65,7 @@ def _normalise_fields(fields: dict) -> dict:
             "source": value.get("source", "manual"),
             "label": value.get("label", key.replace("_", " ").title()),
             "type": value.get("type", "text"),
+            "value": value.get("value", ""),
             "required": bool(value.get("required", False)),
             "options": value.get("options", []) if isinstance(value.get("options", []), list) else [],
         }

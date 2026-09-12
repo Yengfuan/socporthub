@@ -24,14 +24,14 @@ function setStatus(proposalId, formKey, status) {
 
 function fieldInput(fieldKey, field, values = {}) {
   const type = ["text", "date", "time", "number", "email", "url"].includes(field.type) ? field.type : "text";
-  const value = values[fieldKey] || "";
+  const value = values[fieldKey] ?? field.value ?? "";
   const isManual = field.source === "manual";
   const label = `${escapeHtml(field.label)}${!isManual ? " (auto-filled)" : ""}${field.required ? " *" : ""}`;
   const options = field.options?.length
     ? field.options.map((option) => `<option value="${escapeHtml(option)}" ${value === option ? "selected" : ""}>${escapeHtml(option)}</option>`).join("")
     : "";
   const control = options
-    ? `<select data-external-field="${escapeHtml(fieldKey)}">${options}</select>`
+    ? `<select data-external-field="${escapeHtml(fieldKey)}" ${!isManual ? "disabled" : ""}>${options}</select>`
     : `<input type="${type}" data-external-field="${escapeHtml(fieldKey)}" value="${escapeHtml(value)}" ${isManual && field.required ? "required" : ""} ${!isManual ? "readonly" : ""} />`;
   return `<div class="field"><label>${label}</label>${control}</div>`;
 }
@@ -43,7 +43,10 @@ export async function loadCommitteeFormFields(root, proposal = null) {
     const form = byKey.get(panel.dataset.cca);
     if (!form || !Object.keys(form.fields || {}).length) return;
     const values = proposal?.external_form_data?.[form.form_key] || {};
-    panel.querySelector(".cca-request-fields").innerHTML = Object.entries(form.fields)
+    const manualFields = Object.entries(form.fields).filter(([, field]) => field.source === "manual");
+    panel.querySelector(".cca-request-fields").innerHTML = manualFields.length
+      ? manualFields.map(([key, field]) => fieldInput(key, field, values)).join("")
+      : `<span class="field-hint">No additional information is needed here. Automatically mapped fields will be added when the form opens.</span>`;
       .map(([key, field]) => fieldInput(key, field, values)).join("");
   });
 }
@@ -92,13 +95,16 @@ function prefilledUrl(form, proposal) {
     event_time: proposal.event_time || "",
     doc_link: proposal.doc_link || "",
     committee_and_category: `${proposal.committee_name} - ${proposal.category.replaceAll("_", " ")}`,
+    constant: null,
     submitter_name: proposal.submitter_name || "",
     person_in_charge: proposal.submitter_name || "",
     committee_name: form.committee_name,
     request_id: String(proposal.id),
   };
   Object.entries(form.fields || {}).forEach(([key, field]) => {
-    const value = field.source && field.source !== "manual" ? sourceValues[field.source] : stored[key];
+    const value = field.source === "constant"
+      ? field.value
+      : field.source && field.source !== "manual" ? sourceValues[field.source] : stored[key];
     if (field.entry_id && value !== undefined && value !== "") url.searchParams.set(field.entry_id, value);
   });
   return url.toString();
