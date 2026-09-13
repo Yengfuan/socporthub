@@ -123,10 +123,34 @@ async def send_proposal_announcement(
 
 
 async def notify_admins_todays_collections(
-    collections: list[tuple[str, str, str]], portfolio: Portfolio
+    collections: list[dict], portfolio: Portfolio
 ) -> None:
     if not collections:
         return
-    lines = [f"• {title} ({committee}) — {when}" for title, committee, when in collections]
+    quantities = ("plates", "cups", "bowls", "forks", "spoons")
+    grouped: dict[str, list[dict]] = {}
+    for collection in collections:
+        grouped.setdefault(collection["committee"], []).append(collection)
+
+    lines = [f"🌅 <b>Today's disposable collections — {escape(portfolio.value.title())}</b>"]
+    grand_total = {item: 0 for item in quantities}
+    for committee, committee_collections in sorted(grouped.items()):
+        lines.append(f"\n<b>{escape(committee)}</b>")
+        committee_total = {item: 0 for item in quantities}
+        for collection in sorted(committee_collections, key=lambda item: (item["time"], item["title"])):
+            amounts = []
+            for item in quantities:
+                amount = collection[item]
+                committee_total[item] += amount
+                grand_total[item] += amount
+                if amount:
+                    amounts.append(f"{amount} {item}")
+            detail = ", ".join(amounts) or "no items"
+            lines.append(f"• {escape(collection['time'])} — <b>{escape(collection['title'])}</b>: {detail}")
+        subtotal = ", ".join(f"{committee_total[item]} {item}" for item in quantities if committee_total[item]) or "no items"
+        lines.append(f"<i>Committee total: {subtotal}</i>")
+
+    total = ", ".join(f"{grand_total[item]} {item}" for item in quantities if grand_total[item]) or "no items"
+    lines.append(f"\n<b>Total for {escape(portfolio.value.title())}: {total}</b>")
     for admin_id in _admin_ids(portfolio):
-        await send_message(admin_id, "🌅 <b>Today's disposable collections</b>\n" + "\n".join(lines))
+        await send_message(admin_id, "\n".join(lines))

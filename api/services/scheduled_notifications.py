@@ -27,19 +27,22 @@ async def collection_reminder_loop() -> None:
                         .filter(DisposableRequest.approved.is_(True), DisposableRequest.collection_date == now.date())
                         .all()
                     )
-                collections = [
-                        (
-                            r.proposal.title,
-                            r.proposal.committee.name,
-                            r.collection_time.strftime("%H:%M") if r.collection_time else "time not set",
-                        )
+                    collections = [
+                        {
+                            "title": r.proposal.title,
+                            "committee": r.proposal.committee.name,
+                            "time": r.collection_time.strftime("%H:%M") if r.collection_time else "time not set",
+                            "portfolio": committee_portfolio(r.proposal.committee),
+                            "plates": r.plates,
+                            "cups": r.cups,
+                            "bowls": r.bowls,
+                            "forks": r.forks,
+                            "spoons": r.spoons,
+                        }
                         for r in requests
                     ]
                 for portfolio in Portfolio:
-                    portfolio_collections = [
-                        item for item, request in zip(collections, requests)
-                        if committee_portfolio(request.proposal.committee) == portfolio
-                    ]
+                    portfolio_collections = [item for item in collections if item["portfolio"] == portfolio]
                     await notify_admins_todays_collections(portfolio_collections, portfolio)
                 last_notified = now.date()
         except asyncio.CancelledError:

@@ -363,7 +363,7 @@ a {
 .comments-empty { padding: var(--space-3); border: 1px dashed var(--border); border-radius: var(--radius); }
 .comment-form { margin-top: var(--space-2); padding: var(--space-4); border: 1px solid var(--border); border-radius: var(--radius); background: #f9fafb; }
 .comment-form label { display: block; margin-bottom: var(--space-2); font-size: 13px; font-weight: 600; }
-.comment-form textarea { min-height: 92px; margin: 0; border-color: #d1d5db; background: var(--surface); box-shadow: 0 1px 2px rgb(0 0 0 / 4%); }
+.comment-form textarea { display: block; width: 100%; min-height: 92px; margin: 0; padding: var(--space-3); border: 1px solid #d1d5db; border-radius: var(--radius); font: inherit; font-size: 15px; line-height: 1.45; color: var(--text); background: var(--surface); resize: vertical; box-shadow: 0 1px 2px rgb(0 0 0 / 4%); }
 .comment-form textarea:focus { border-color: var(--accent); outline: 2px solid rgb(37 99 235 / 15%); }
 .comment-form-footer { display: flex; align-items: center; justify-content: space-between; gap: var(--space-3); margin-top: var(--space-3); }
 .comment-form-footer span { color: var(--text-muted); font-size: 11px; line-height: 1.3; }
