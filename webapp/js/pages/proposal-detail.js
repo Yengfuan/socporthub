@@ -16,6 +16,13 @@ const NEXT_STATUS_LABEL = {
   in_review: "Mark Submitted",
   submitted: "Mark Finished",
 };
+const STATUS_LABELS = {
+  draft: "Draft",
+  needs_action: "Needs Action",
+  in_review: "In Review",
+  submitted: "Submitted",
+  finished: "Finished",
+};
 
 function escapeHtml(s) {
   const div = document.createElement("div");
@@ -388,7 +395,6 @@ export async function renderProposalDetail(root, user, proposalId, navigate) {
     }
 
     <div id="detail-error"></div>
-    ${!isAdmin ? `<button class="btn btn-secondary" id="remind-btn" style="margin-top:12px">Remind Admin</button>` : ""}
     <div id="comments-slot" class="comments-slot"></div>
   `;
 
@@ -476,19 +482,6 @@ export async function renderProposalDetail(root, user, proposalId, navigate) {
       () => renderProposalDetail(root, user, proposalId, navigate)
     );
   });
-  root.querySelector("#remind-btn")?.addEventListener("click", async (e) => {
-    const message = window.prompt("What should the admin review?");
-    if (!message?.trim()) return;
-    e.target.disabled = true;
-    try {
-      await api.post("/api/reminders", { message: message.trim(), target_type: "proposal", target_id: proposal.id });
-      e.target.textContent = "Reminder sent";
-    } catch (err) {
-      root.querySelector("#detail-error").innerHTML = `<div class="error-banner">${escapeHtml(err.message)}</div>`;
-      e.target.disabled = false;
-    }
-  });
-
   async function changeStatus(btn, newStatus, options = {}) {
     btn.disabled = true;
     const errorEl = root.querySelector("#detail-error");
@@ -536,11 +529,28 @@ async function renderCommentsSection(slot, user, proposal) {
   if (!slot) return;
   slot.innerHTML = `<section class="card comments-card"><div class="comments-heading"><div><h3>Comments & review history</h3><p>Keep questions and requested changes here so everyone can follow the proposal.</p></div></div><div class="loading">Loading comments…</div></section>`;
   try {
-    const comments = await api.get(`/api/proposals/${proposal.id}/comments`);
+    const [comments, statusHistory] = await Promise.all([
+      api.get(`/api/proposals/${proposal.id}/comments`),
+      api.get(`/api/proposals/${proposal.id}/status-history`),
+    ]);
     const canReplyToAdmin = user.role !== "admin" && proposal.status === "needs_action";
     const commentById = new Map(comments.map((comment) => [comment.id, comment]));
-    const commentHtml = comments.length
-      ? comments.map((comment) => {
+    const historyItems = [
+      ...comments.map((comment) => ({ ...comment, historyType: "comment" })),
+      ...statusHistory.map((entry) => ({ ...entry, historyType: "status" })),
+    ].sort((a, b) => new Date(a.created_at) - new Date(b.created_at));
+    const commentHtml = historyItems.length
+      ? historyItems.map((item) => {
+          if (item.historyType === "status") {
+            const toLabel = STATUS_LABELS[item.to_status] || item.to_status;
+            const from = item.from_status ? ` from ${STATUS_LABELS[item.from_status] || item.from_status}` : "";
+            return `<article class="comment-item status-history-item">
+              <div class="comment-rail"><span class="comment-dot"></span></div>
+              <div class="comment-content"><div class="comment-meta"><strong>Status changed</strong><span>${escapeHtml(toLabel)}</span><time>${new Date(item.created_at).toLocaleString()}</time></div>
+              <p>${escapeHtml(item.changer_name || "System")} changed the proposal status${from} to <strong>${escapeHtml(toLabel)}</strong>.</p></div>
+            </article>`;
+          }
+          const comment = item;
           const parent = comment.reply_to_comment_id ? commentById.get(comment.reply_to_comment_id) : null;
           const isAdminComment = comment.author_role === "admin";
           return `<article class="comment-item ${isAdminComment ? "comment-admin" : "comment-user"}">

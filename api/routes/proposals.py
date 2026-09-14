@@ -14,6 +14,7 @@ from api.models import (
     Committee,
     Proposal, EmailDraft,
     ProposalComment,
+    ProposalStatusHistory,
     ProposalCategory, ProposalStatus,
     User,
     UserRole,
@@ -27,6 +28,7 @@ from api.portfolio import (
 from api.schemas import (
     ProposalCommentCreate,
     ProposalCommentOut,
+    ProposalStatusHistoryOut,
     ProposalCreateRequest,
     ProposalOut,
     ProposalStatusCounts,
@@ -34,6 +36,8 @@ from api.schemas import (
 )
 from bot.notifications import (
     notify_admins_new_proposal,
+    notify_admins_new_comment,
+    notify_user_new_comment,
     notify_user_status_change,
     send_proposal_announcement,
 )
@@ -257,7 +261,14 @@ async def update_proposal(
                 "Event proposals must be approved through the email workflow",
             )
         was_awaiting_review = proposal.status in (ProposalStatus.draft, ProposalStatus.needs_action)
+        previous_status = proposal.status
         proposal.status = req.status
+        db.add(ProposalStatusHistory(
+            proposal_id=proposal.id,
+            changed_by=user.id,
+            from_status=previous_status,
+            to_status=req.status,
+        ))
 
     content_fields = ("category", "title", "description", "doc_link", "blast_message", "event_date", "event_time", "requested_ccas", "external_form_data")
     # Use model_fields_set (not "is not None") so a client can explicitly clear a
@@ -450,6 +461,12 @@ def _comment_to_out(c: ProposalComment) -> ProposalCommentOut:
     return out
 
 
+def _status_history_to_out(entry: ProposalStatusHistory) -> ProposalStatusHistoryOut:
+    out = ProposalStatusHistoryOut.model_validate(entry)
+    out.changer_name = entry.changer.display_name or entry.changer.email
+    return out
+
+
 @router.get("/{proposal_id}/comments", response_model=list[ProposalCommentOut])
 def list_comments(
     proposal_id: int,
@@ -460,8 +477,24 @@ def list_comments(
     return [_comment_to_out(c) for c in proposal.comments]
 
 
+@router.get("/{proposal_id}/status-history", response_model=list[ProposalStatusHistoryOut])
+def list_status_history(
+    proposal_id: int,
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
+) -> list[ProposalStatusHistoryOut]:
+    proposal = get_visible_proposal(db, user, proposal_id)
+    entries = (
+        db.query(ProposalStatusHistory)
+        .filter(ProposalStatusHistory.proposal_id == proposal.id)
+        .order_by(ProposalStatusHistory.created_at)
+        .all()
+    )
+    return [_status_history_to_out(entry) for entry in entries]
+
+
 @router.post("/{proposal_id}/comments", response_model=ProposalCommentOut, status_code=status.HTTP_201_CREATED)
-def add_comment(
+async def add_comment(
     proposal_id: int,
     req: ProposalCommentCreate,
     db: Session = Depends(get_db),
@@ -483,4 +516,18 @@ def add_comment(
     db.add(comment)
     db.commit()
     db.refresh(comment)
+    if user.role == UserRole.admin:
+        await notify_user_new_comment(
+            proposal.submitter.telegram_id,
+            proposal.title,
+            user.display_name or user.email,
+            comment.body,
+        )
+    else:
+        await notify_admins_new_comment(
+            proposal.title,
+            user.display_name or user.email,
+            comment.body,
+            committee_portfolio(proposal.committee),
+        )
     return _comment_to_out(comment)

@@ -157,6 +157,18 @@ class ProposalCommentOut(BaseModel):
     created_at: datetime
 
 
+class ProposalStatusHistoryOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: int
+    proposal_id: int
+    changed_by: int
+    changer_name: str | None = None
+    from_status: ProposalStatus | None
+    to_status: ProposalStatus
+    created_at: datetime
+
+
 # --- Disposables ---
 
 

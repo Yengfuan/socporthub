@@ -175,6 +175,20 @@ class ProposalComment(Base):
     replies: Mapped[list["ProposalComment"]] = relationship(back_populates="reply_to")
 
 
+class ProposalStatusHistory(Base):
+    __tablename__ = "proposal_status_history"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    proposal_id: Mapped[int] = mapped_column(ForeignKey("proposals.id"), nullable=False)
+    changed_by: Mapped[int] = mapped_column(ForeignKey("users.id"), nullable=False)
+    from_status: Mapped[ProposalStatus | None] = mapped_column(Enum(ProposalStatus, native_enum=False))
+    to_status: Mapped[ProposalStatus] = mapped_column(Enum(ProposalStatus, native_enum=False), nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+    proposal: Mapped["Proposal"] = relationship()
+    changer: Mapped["User"] = relationship()
+
+
 class DisposableRequest(Base):
     __tablename__ = "disposable_requests"
 

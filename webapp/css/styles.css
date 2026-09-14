@@ -352,6 +352,9 @@ a {
 .comment-item:last-child .comment-rail::after { display: none; }
 .comment-dot { display: block; position: relative; z-index: 1; width: 16px; height: 16px; margin-top: 2px; border: 3px solid var(--surface); border-radius: 50%; background: var(--accent); box-shadow: 0 0 0 1px var(--accent); }
 .comment-admin .comment-dot { background: var(--amber-text); box-shadow: 0 0 0 1px var(--amber-text); }
+.status-history-item .comment-dot { background: var(--text-muted); box-shadow: 0 0 0 1px var(--text-muted); }
+.status-history-item .comment-meta strong { color: var(--text-muted); }
+.status-history-item .comment-meta span { background: var(--green-bg); color: var(--green-text); }
 .comment-content { flex: 1; padding: 0 0 var(--space-4); }
 .comment-meta { display: flex; align-items: baseline; flex-wrap: wrap; gap: var(--space-2); font-size: 12px; }
 .comment-meta span { padding: 2px 7px; border-radius: 999px; background: var(--blue-bg); color: var(--blue-text); font-weight: 600; }

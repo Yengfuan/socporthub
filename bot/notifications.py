@@ -71,6 +71,26 @@ async def notify_user_status_change(
     await send_message(telegram_id, text)
 
 
+async def notify_admins_new_comment(
+    proposal_title: str, author_name: str, comment: str, portfolio: Portfolio
+) -> None:
+    text = (
+        f"💬 New comment on <b>{escape(proposal_title)}</b>\n"
+        f"From: <b>{escape(author_name)}</b>\n\n{escape(comment)}"
+    )
+    for admin_id in _admin_ids(portfolio):
+        await send_message(admin_id, text)
+
+
+async def notify_user_new_comment(
+    telegram_id: int, proposal_title: str, author_name: str, comment: str
+) -> None:
+    await send_message(
+        telegram_id,
+        f"💬 New comment on <b>{escape(proposal_title)}</b> from <b>{escape(author_name)}</b>\n\n{escape(comment)}",
+    )
+
+
 async def notify_admins_new_disposable_request(
     proposal_title: str, requester_name: str, portfolio: Portfolio
 ) -> None:
