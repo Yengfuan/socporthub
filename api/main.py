@@ -1,7 +1,7 @@
 import logging
 import asyncio
 
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
 from fastapi.staticfiles import StaticFiles
 
 from api.routes import auth, bug_reports, calendar, committees, disposables, email, proposals, reminders, telegram_webhook, users
@@ -10,6 +10,14 @@ logging.basicConfig(level=logging.INFO)
 
 app = FastAPI(title="Social Port Hub API")
 collection_reminder_task = None
+
+
+@app.middleware("http")
+async def disable_webapp_asset_caching(request: Request, call_next):
+    response = await call_next(request)
+    if not request.url.path.startswith("/api/"):
+        response.headers["Cache-Control"] = "no-store, max-age=0"
+    return response
 
 
 @app.on_event("startup")
