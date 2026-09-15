@@ -134,7 +134,7 @@ class Proposal(Base):
     submitted_by: Mapped[int] = mapped_column(ForeignKey("users.id"), nullable=False)
     title: Mapped[str] = mapped_column(String(255), nullable=False)
     category: Mapped[ProposalCategory] = mapped_column(
-        Enum(ProposalCategory, native_enum=False), default=ProposalCategory.pantry_cleaning, nullable=False
+        Enum(ProposalCategory, native_enum=False), default=ProposalCategory.event, nullable=False
     )
     description: Mapped[str | None] = mapped_column(Text)
     doc_link: Mapped[str | None] = mapped_column(Text)

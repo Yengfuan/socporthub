@@ -72,7 +72,7 @@ class UserUpdateRequest(BaseModel):
 
 class ProposalCreateRequest(BaseModel):
     title: str
-    category: ProposalCategory = ProposalCategory.pantry_cleaning
+    category: ProposalCategory = ProposalCategory.event
     description: str | None = None
     doc_link: str | None = None
     blast_message: str | None = None

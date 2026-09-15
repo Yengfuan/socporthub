@@ -139,7 +139,7 @@ export function renderNewProposal(root, navigate, user) {
           <div class="field">
             <label for="category">Category</label>
             <select id="category" name="category" required>
-              ${categoryOptions(saved.category || (portfolio === "welfare" ? "event" : "pantry_cleaning"), portfolio)}
+              ${categoryOptions(saved.category || "event", portfolio)}
             </select>
           </div>
           <div class="field">
@@ -181,7 +181,7 @@ export function renderNewProposal(root, navigate, user) {
         </div>
       </details>
 
-      <details class="proposal-section">
+      <details class="proposal-section" open>
         <summary>Media Request</summary>
         <div class="proposal-section-content">
           <p class="media-autofill-note"><strong>Autofill available:</strong> only Tech Crew and AnG can be autofilled for now.</p>
