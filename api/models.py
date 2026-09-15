@@ -14,6 +14,7 @@ from sqlalchemy import (
     Time,
     Text,
     func,
+    UniqueConstraint,
 )
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
@@ -37,6 +38,8 @@ class ProposalStatus(str, enum.Enum):
     in_review = "in_review"
     submitted = "submitted"
     finished = "finished"
+    grading = "grading"
+    final = "final"
 
 
 class ProposalCategory(str, enum.Enum):
@@ -46,6 +49,7 @@ class ProposalCategory(str, enum.Enum):
     decor = "decor"
     pantry_cleaning = "pantry_cleaning"
     merch = "merch"
+    pubs = "pubs"
 
 
 class ReminderTargetType(str, enum.Enum):
@@ -68,7 +72,10 @@ PROPOSAL_STATUS_TRANSITIONS: dict[ProposalStatus, set[ProposalStatus]] = {
     ProposalStatus.needs_action: {ProposalStatus.in_review},
     ProposalStatus.in_review: {ProposalStatus.submitted, ProposalStatus.needs_action, ProposalStatus.finished},
     ProposalStatus.submitted: {ProposalStatus.finished},
+    # Grading transitions are handled by the grading routes, which validate forms.
     ProposalStatus.finished: set(),
+    ProposalStatus.grading: set(),
+    ProposalStatus.final: set(),
 }
 
 
@@ -135,6 +142,10 @@ class Proposal(Base):
     poster_filename: Mapped[str | None] = mapped_column(String(255))
     poster_content_type: Mapped[str | None] = mapped_column(String(100))
     poster_data: Mapped[bytes | None] = mapped_column(LargeBinary)
+    drive_folder_id: Mapped[str | None] = mapped_column(String(255))
+    drive_pdf_id: Mapped[str | None] = mapped_column(String(255))
+    drive_ready: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+    drive_error: Mapped[str | None] = mapped_column(Text)
     status: Mapped[ProposalStatus] = mapped_column(
         Enum(ProposalStatus, native_enum=False), default=ProposalStatus.needs_action
     )
@@ -187,6 +198,34 @@ class ProposalStatusHistory(Base):
 
     proposal: Mapped["Proposal"] = relationship()
     changer: Mapped["User"] = relationship()
+
+
+class ProposalGrading(Base):
+    __tablename__ = "proposal_gradings"
+
+    proposal_id: Mapped[int] = mapped_column(ForeignKey("proposals.id"), primary_key=True)
+    started_by: Mapped[int] = mapped_column(ForeignKey("users.id"), nullable=False)
+    started_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    deadline: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    user_data: Mapped[str] = mapped_column(Text, default="{}", nullable=False)
+    admin_data: Mapped[str] = mapped_column(Text, default="{}", nullable=False)
+    user_submitted_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    admin_submitted_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    admin_author_id: Mapped[int | None] = mapped_column(ForeignKey("users.id"))
+    proposal: Mapped["Proposal"] = relationship()
+
+
+class GradingNotification(Base):
+    """Durable per-recipient reminder delivery."""
+    __tablename__ = "grading_notifications"
+    __table_args__ = (UniqueConstraint("proposal_id", "milestone", "telegram_id"),)
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    proposal_id: Mapped[int] = mapped_column(ForeignKey("proposals.id"), nullable=False)
+    milestone: Mapped[str] = mapped_column(String(32), nullable=False)
+    telegram_id: Mapped[int] = mapped_column(BigInteger, nullable=False)
+    message: Mapped[str] = mapped_column(Text, nullable=False)
+    sent_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
 
 
 class DisposableRequest(Base):

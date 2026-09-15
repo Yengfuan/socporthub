@@ -27,6 +27,15 @@ class Settings(BaseSettings):
     welfare_resend_cc_email: str = "rh.social.e@u.nus.edu"
     app_timezone: str = "Asia/Kuala_Lumpur"
     collection_reminder_hour: int = 8
+    grading_enabled: bool = False
+    grading_remind_admins: bool = True
+    # disabled | live
+    google_drive_mode: str = "disabled"
+    google_service_account_file: str = ""
+    google_service_account_json: str = ""
+    google_drive_parent_folder_id: str = ""
+    google_drive_social_parent_folder_id: str = ""
+    google_drive_welfare_parent_folder_id: str = ""
 
     # JSON object keyed by committee name. This is intentionally configuration-
     # driven for the first Google Forms test, so adding a form does not require

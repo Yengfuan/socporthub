@@ -234,6 +234,58 @@ a {
 .badge-in_review { background: var(--blue-bg); color: var(--blue-text); }
 .badge-submitted { background: var(--purple-bg); color: var(--purple-text); }
 .badge-finished { background: var(--green-bg); color: var(--green-text); }
+.badge-grading { background: var(--amber-bg); color: var(--amber-text); }
+.badge-final { background: var(--purple-bg); color: var(--purple-text); }
+
+/* Post-event grading */
+.grading-card { border-top: 4px solid #7060b9; margin-top: 20px; }
+.grading-heading { display: flex; justify-content: space-between; align-items: center; gap: 12px; }
+.grading-eyebrow { color: #7060b9; font-size: 10px; letter-spacing: .12em; font-weight: 700; }
+.grading-card h2, .grading-open h2 { margin: 6px 0 16px; font-size: 22px; }
+.grading-deadline { display: flex; flex-direction: column; gap: 5px; border: 1px solid #f2cf85; border-radius: 10px; padding: 14px 16px; margin: 12px 0 22px; background: #fffbef; color: #80571e; }
+.grading-deadline strong { font-size: 18px; font-variant-numeric: tabular-nums; }
+.grading-deadline span { font-size: 12px; line-height: 1.5; }
+.grading-overdue { background: var(--red-bg); color: var(--red-text); border-color: #efaaaa; }
+.grading-complete { padding: 14px; margin: 14px 0 20px; border-radius: 10px; background: var(--green-bg); color: var(--green-text); font-size: 13px; }
+.grading-scale { padding: 12px 14px; background: #f5f3fb; border-radius: 8px; font-size: 12px; line-height: 1.6; color: #66588d; }
+.grading-field { border: 1px solid var(--border); border-radius: 10px; margin: 22px 0; padding: 14px 16px 16px; min-width: 0; }
+.grading-field legend { padding: 0 6px; font-size: 16px; font-weight: 600; }
+.grading-field legend span { color: #9183b2; font-size: 11px; margin-right: 6px; }
+.grading-score { display: flex; justify-content: space-between; align-items: center; margin-bottom: 14px; }
+.grading-score > div { display: flex; gap: 8px; align-items: center; color: var(--text-muted); }
+.grading-score input { width: 72px; padding: 10px 6px; text-align: center; font-size: 22px; font-weight: 600; border: 1px solid #cfc5e7; border-radius: 8px; color: #574389; background: #fcfbff; }
+.grading-field label { display: block; font-size: 12px; font-weight: 500; color: var(--text-muted); margin-bottom: 6px; }
+.grading-field textarea { width: 100%; min-height: 96px; box-sizing: border-box; padding: 11px; border: 1px solid #d8dce3; border-radius: 7px; font: inherit; font-size: 13px; line-height: 1.6; resize: vertical; }
+.grading-field input:focus, .grading-field textarea:focus { outline: 2px solid #bcb0de; outline-offset: 2px; }
+.grading-options { padding: 0; margin: 20px 0; border: 0; min-width: 0; }
+.grading-options legend { font-size: 13px; margin-bottom: 10px; font-weight: 600; }
+.grading-options > div { display: flex; flex-wrap: wrap; gap: 8px; }
+.grading-options label { display: flex; align-items: center; gap: 8px; border: 1px solid var(--border); padding: 9px 12px; border-radius: 8px; font-size: 13px; cursor: pointer; }
+.grading-options label:has(input:checked) { background: #f0ebfa; border-color: #b3a2d7; color: #574389; }
+.grading-options input { accent-color: #7060b9; }
+.grading-evidence { display: flex; gap: 12px; background: #f6f8fa; border: 1px solid #e3e8ee; border-radius: 10px; padding: 16px; margin: 20px 0; overflow-wrap: anywhere; }
+.grading-evidence h3 { margin: 0 0 5px; font-size: 14px; }
+.grading-evidence p { font-size: 12px; line-height: 1.5; margin-bottom: 10px; }
+.grading-evidence-icon { flex: 0 0 32px; height: 32px; background: white; border: 1px solid var(--border); border-radius: 8px; text-align: center; line-height: 30px; color: #5e799e; }
+.grading-drive-link { font-size: 13px; font-weight: 600; text-decoration: underline; text-underline-offset: 3px; }
+.grading-actions { display: flex; gap: 10px; margin: 14px 0 10px; }
+.grading-actions .btn { flex: 1; width: auto; padding: 12px 8px; font-size: 13px; }
+.grading-feedback { font-size: 13px; padding-top: 5px; }
+.grading-error { color: var(--red-text); }
+.grading-saved { color: var(--green-text); }
+.grading-open { margin-top: 20px; background: #faf9fe; border: 1px solid #dcd2ef; }
+.grading-summary { margin: 20px 0; }
+.grading-result { padding: 12px 0; border-bottom: 1px solid var(--border); }
+.grading-result > div { display: flex; justify-content: space-between; font-size: 13px; }
+.grading-result > div > span { color: #7060b9; font-weight: 600; }
+.grading-result p { white-space: pre-wrap; overflow-wrap: anywhere; font-size: 13px; color: var(--text-muted); margin: 8px 0 0; line-height: 1.6; }
+.grading-tags { display: flex; flex-wrap: wrap; gap: 6px; }
+.grading-tags span { padding: 5px 9px; background: #f0ebfa; color: #574389; border-radius: 6px; font-size: 12px; }
+@media (max-width: 420px) {
+  .grading-card { padding: 16px; }
+  .grading-field { padding: 12px; }
+  .grading-heading h2 { font-size: 20px; }
+}
 .badge-pending { background: var(--amber-bg); color: var(--amber-text); }
 .badge-approved { background: var(--green-bg); color: var(--green-text); }
 .badge-rejected { background: var(--red-bg); color: var(--red-text); }

@@ -75,6 +75,7 @@ export const api = {
   getBlob: requestBlob,
   post: (path, body) => request("POST", path, body),
   patch: (path, body) => request("PATCH", path, body),
+  put: (path, body) => request("PUT", path, body),
   upload: (path, body) => request("POST", path, body),
   delete: (path) => request("DELETE", path),
   ApiError,

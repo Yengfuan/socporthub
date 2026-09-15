@@ -17,6 +17,8 @@ Outlook calendar apps — see "Calendar" below.
 
 ## Local development
 
+For grading setup and workflow rules, see [Grading](docs/grading.md).
+
 ```bash
 python -m venv .venv && source .venv/bin/activate
 pip install -r requirements.txt

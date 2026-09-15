@@ -6,6 +6,8 @@ venv/
 dev.db
 *.db
 *.db.*
+# Local grading demo data (kept on disk, never committed).
+/grading-preview.db*
 .vscode/
 .pytest_cache/
 .DS_Store

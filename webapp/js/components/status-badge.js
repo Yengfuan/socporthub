@@ -4,6 +4,8 @@ const LABELS = {
   in_review: "In Review",
   submitted: "Submitted",
   finished: "Finished",
+  grading: "Grading",
+  final: "Final",
   pending: "Pending",
   approved: "Approved",
   rejected: "Rejected",

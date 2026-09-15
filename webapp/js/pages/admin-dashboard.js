@@ -9,6 +9,8 @@ const STATUS_LABELS = {
   in_review: "In Review",
   submitted: "Submitted",
   finished: "Finished",
+  grading: "Grading",
+  final: "Final",
 };
 
 function escapeHtml(s) {

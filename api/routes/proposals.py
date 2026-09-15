@@ -45,6 +45,8 @@ from api.routes.email import _committee_ccs, _generated, _without_links
 from api.services.google_docs import PDF_ATTACHMENT_LIMIT_BYTES, download_google_doc_pdf, proposal_pdf_filename
 from api.services.document_links import document_download_url, verify_document_token
 from api.services.resend_email import send_email
+from api.services.grading import RUBRICS
+from api.services.google_drive import provision_evidence
 
 router = APIRouter(prefix="/api/proposals", tags=["proposals"])
 
@@ -59,6 +61,7 @@ def _to_out(p: Proposal) -> ProposalOut:
     except json.JSONDecodeError:
         external_form_data = {}
     return ProposalOut(
+        grading_available=get_settings().grading_enabled and p.category.value in RUBRICS,
         id=p.id,
         committee_id=p.committee_id,
         committee_name=p.committee.name,
@@ -195,6 +198,7 @@ async def create_proposal(
     db.refresh(proposal)
 
     if not req.save_draft:
+        await provision_evidence(db, proposal.id)
         await notify_admins_new_proposal(
             proposal.title,
             user.display_name or user.email,
@@ -275,6 +279,8 @@ async def update_proposal(
     # nullable field — e.g. {"event_date": null} — by including the key in the payload.
     # Omitting the key entirely means "leave this field alone".
     provided_content_fields = req.model_fields_set & set(content_fields)
+    if "category" in provided_content_fields and proposal.status in (ProposalStatus.grading, ProposalStatus.final):
+        raise HTTPException(409, "The category cannot change once grading has started")
     if provided_content_fields:
         if not is_admin and not (is_owner and proposal.status in (ProposalStatus.draft, ProposalStatus.needs_action)):
             raise HTTPException(
@@ -328,6 +334,7 @@ async def update_proposal(
         db.refresh(proposal)
 
     if req.status == ProposalStatus.in_review and was_awaiting_review:
+        await provision_evidence(db, proposal.id)
         # A fresh draft submission or a resubmission after needs_action both mean
         # "there's something for an admin to review now" — same signal as a new proposal.
         await notify_admins_new_proposal(

@@ -7,6 +7,8 @@ const STATUS_LABELS = {
   in_review: "In Review",
   submitted: "Submitted",
   finished: "Finished",
+  grading: "Grading",
+  final: "Final",
 };
 
 function escapeHtml(s) {
@@ -47,6 +49,7 @@ export async function renderHome(root, user) {
         .join("")}
     </div>
 
+    ${proposals.some((p) => p.status === "grading" && p.submitted_by === user.id) ? `<div class="grading-deadline"><strong>Self-assessments need your attention</strong><span>Open a proposal marked Grading to see its deadline, save scores, and submit.</span></div>` : ""}
     <h2>Recent proposals</h2>
     <div id="proposal-list">
       ${

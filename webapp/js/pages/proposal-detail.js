@@ -1,4 +1,5 @@
 import { api } from "../api.js";
+import { renderGrading } from "../components/grading.js";
 import { statusBadge } from "../components/status-badge.js";
 import { renderDisposableSection } from "../components/disposable-form.js";
 import { collectExternalFormData, loadCommitteeFormFields, renderCommitteeFormsSection } from "../components/committee-forms.js";
@@ -22,6 +23,8 @@ const STATUS_LABELS = {
   in_review: "In Review",
   submitted: "Submitted",
   finished: "Finished",
+  grading: "Grading",
+  final: "Final",
 };
 
 function escapeHtml(s) {
@@ -37,9 +40,10 @@ const CATEGORY_LABELS = {
   decor: "Decor",
   pantry_cleaning: "Pantry Cleaning",
   merch: "Merch",
+  pubs: "Pubs",
 };
 const PORTFOLIO_CATEGORIES = {
-  social: ["event", "initiative", "welfare", "decor", "pantry_cleaning", "merch"],
+  social: ["event", "initiative", "welfare", "decor", "pantry_cleaning", "merch", "pubs"],
   welfare: ["event", "initiative"],
 };
 const CATEGORY_REQUIRES_POSTER = ["event", "initiative", "welfare", "merch"];
@@ -326,6 +330,7 @@ export async function renderProposalDetail(root, user, proposalId, navigate) {
 
     <h1>${escapeHtml(proposal.title)}</h1>
     <p>${escapeHtml(proposal.committee_name)} · Submitted by ${escapeHtml(proposal.submitter_name || "")}</p>
+    <div id="grading-slot"></div>
 
     ${canEdit ? `<div id="edit-form-slot"></div>` : ""}
 
@@ -388,11 +393,6 @@ export async function renderProposalDetail(root, user, proposalId, navigate) {
         ? `<button class="btn btn-secondary" id="revert-btn" style="margin-top:8px">Send back to Needs Action</button>`
         : ""
     }
-    ${
-      proposal.status === "finished" && ["event", "initiative"].includes(proposal.category)
-        ? `<button class="btn btn-secondary" id="announce-btn" style="margin-top:8px">Send Announcement</button>`
-        : ""
-    }
 
     <div id="detail-error"></div>
     <div id="comments-slot" class="comments-slot"></div>
@@ -401,6 +401,8 @@ export async function renderProposalDetail(root, user, proposalId, navigate) {
   renderCommitteeFormsSection(root.querySelector("#committee-forms-slot"), proposal);
   renderDisposableSection(root.querySelector("#disposable-slot"), user, proposal);
   renderCommentsSection(root.querySelector("#comments-slot"), user, proposal);
+  await renderGrading(root.querySelector("#grading-slot"), user, proposal,
+    () => renderProposalDetail(root, user, proposalId, navigate));
   if (proposal.status === "in_review" && usesEmailWorkflow) renderEmailSection(root, user, proposal, navigate);
 
   const posterPath = `/api/proposals/${proposal.id}/poster`;
@@ -463,16 +465,6 @@ export async function renderProposalDetail(root, user, proposalId, navigate) {
   });
   root.querySelector("#revert-btn")?.addEventListener("click", async (e) => {
     await changeStatus(e.target, "needs_action");
-  });
-  root.querySelector("#announce-btn")?.addEventListener("click", async (e) => {
-    e.target.disabled = true;
-    try {
-      await api.post(`/api/proposals/${proposal.id}/announce`, {});
-      e.target.textContent = "Announcement sent";
-    } catch (err) {
-      root.querySelector("#detail-error").innerHTML = `<div class="error-banner">${escapeHtml(err.message)}</div>`;
-      e.target.disabled = false;
-    }
   });
   root.querySelector("#edit-btn")?.addEventListener("click", () => {
     renderEditForm(

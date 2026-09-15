@@ -1,6 +1,6 @@
 from api.auth import admin_portfolio
 from api.models import Committee, Portfolio, ProposalCategory, User
-from sqlalchemy import or_
+from sqlalchemy import and_, or_
 
 
 WELFARE_COMMITTEE_NAMES = {
@@ -25,6 +25,7 @@ PORTFOLIO_CATEGORIES: dict[Portfolio, tuple[ProposalCategory, ...]] = {
         ProposalCategory.decor,
         ProposalCategory.pantry_cleaning,
         ProposalCategory.merch,
+        ProposalCategory.pubs,
     ),
     Portfolio.welfare: (
         ProposalCategory.event,
@@ -55,8 +56,8 @@ def admin_committee_filter(user: User):
     """SQLAlchemy expression for committees visible to a portfolio admin."""
     target = admin_portfolio(user)
     if target == Portfolio.social:
-        return or_(Committee.portfolio == target, Committee.portfolio.is_(None))
-    return Committee.portfolio == target
+        return or_(Committee.portfolio == target, and_(Committee.portfolio.is_(None), Committee.name.not_in(WELFARE_COMMITTEE_NAMES)))
+    return or_(Committee.portfolio == target, and_(Committee.portfolio.is_(None), Committee.name.in_(WELFARE_COMMITTEE_NAMES)))
 
 
 def sends_confirmation_email(committee: Committee, category: ProposalCategory) -> bool:

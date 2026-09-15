@@ -8,10 +8,34 @@ from zoneinfo import ZoneInfo
 from api.config import get_settings
 from api.database import SessionLocal
 from api.models import DisposableRequest, Portfolio
+from api.models import Proposal, ProposalStatus
 from api.portfolio import committee_portfolio
 from bot.notifications import notify_admins_todays_collections
 
 logger = logging.getLogger(__name__)
+
+
+async def grading_loop():
+    from api.services.grading import process_grading_notifications
+    from api.services.google_drive import provision_evidence
+    tick = 0
+    while True:
+        try:
+            with SessionLocal() as db:
+                await process_grading_notifications(db)
+                if tick % 10 == 0:
+                    proposals = db.query(Proposal).filter(
+                        Proposal.status != ProposalStatus.draft,
+                        (Proposal.drive_ready.is_(False)) | (Proposal.drive_error.is_not(None)),
+                    ).all()
+                    for proposal in proposals:
+                        await provision_evidence(db, proposal.id)
+            tick += 1
+        except asyncio.CancelledError:
+            raise
+        except Exception:
+            logger.exception("Grading scheduler failed; will retry")
+        await asyncio.sleep(60)
 
 
 async def collection_reminder_loop() -> None:

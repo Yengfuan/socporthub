@@ -126,6 +126,7 @@ class ProposalOut(BaseModel):
     updated_at: datetime
     requested_ccas: list[str] = []
     external_form_data: dict[str, dict] = {}
+    grading_available: bool = False
 
 
 class ProposalStatusCounts(BaseModel):
@@ -134,6 +135,8 @@ class ProposalStatusCounts(BaseModel):
     in_review: int = 0
     submitted: int = 0
     finished: int = 0
+    grading: int = 0
+    final: int = 0
 
 
 # --- Proposal comments ---
