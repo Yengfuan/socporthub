@@ -42,8 +42,10 @@ keep that access scoped. The integration never enables public sharing.
 
 Folders are created on first submission for review, named
 `[committee-name]-[proposal-title]`, and reused for grading. Drafts do not create
-folders. The scheduler also picks up existing submitted proposals. File IDs are
-reserved before creation so retries reuse the same IDs. Accessible supporting
+folders. The scheduler also picks up existing submitted proposals. The app checks
+the parent for an existing folder tagged with the proposal ID before creating one,
+so a retry after an uncertain response can reconcile a folder instead of duplicating
+it. Accessible supporting
 Google Docs are copied as PDFs; this is a snapshot at the first successful copy.
 Folder, sharing or PDF errors do not prevent grading. Setup retries every
 10 minutes, with a manual retry in the grading form.

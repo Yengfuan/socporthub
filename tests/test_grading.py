@@ -241,8 +241,8 @@ def test_drive_folder_pdf_and_permissions_reused_on_retry(grading_client, monkey
         nonlocal uploaded
         requests.append(request)
         path = request.url.path
-        if path.endswith("generateIds"):
-            return httpx.Response(200, json={"ids": ["folder-id", "pdf-id"]})
+        if path == "/drive/v3/files" and request.method == "GET":
+            return httpx.Response(200, json={"files": []})
         if path.endswith("/permissions"):
             if request.method == "POST":
                 permissions.append({"emailAddress": "u1001@example.com", "role": "writer"})
@@ -272,13 +272,13 @@ def test_drive_folder_pdf_and_permissions_reused_on_retry(grading_client, monkey
         p = db.get(Proposal, pid)
         assert p.drive_ready and p.drive_error is None
         assert google_drive.folder_url(p) == "https://drive.google.com/drive/folders/folder-id"
-    assert sum(r.url.path.endswith("generateIds") for r in requests) == 1
+    assert sum(r.method == "GET" and r.url.path == "/drive/v3/files" for r in requests) >= 2
     assert sum(r.method == "POST" and r.url.path == "/drive/v3/files" for r in requests) == 1
     assert sum(r.url.path.startswith("/upload") for r in requests) == 1
     assert sum(r.method == "POST" and r.url.path.endswith("permissions") for r in requests) == 1
 
 
-def test_drive_timeout_preserves_reserved_id_and_does_not_block_grading(grading_client, monkeypatch):
+def test_drive_timeout_reconciles_created_folder_on_retry(grading_client, monkeypatch):
     import httpx
     from api.services import google_drive
     settings = get_settings()
@@ -289,8 +289,8 @@ def test_drive_timeout_preserves_reserved_id_and_does_not_block_grading(grading_
 
     def handle(request):
         nonlocal attempts
-        if request.url.path.endswith("generateIds"):
-            return httpx.Response(200, json={"ids": ["reserved-folder", "reserved-pdf"]})
+        if request.url.path == "/drive/v3/files" and request.method == "GET":
+            return httpx.Response(200, json={"files": [{"id": "reserved-folder", "mimeType": "application/vnd.google-apps.folder"}]} if attempts else {"files": []})
         if request.url.path.endswith("permissions"):
             return httpx.Response(200, json={"permissions": [{"emailAddress": "u1001@example.com", "role": "writer"}]})
         attempts += 1
@@ -305,7 +305,7 @@ def test_drive_timeout_preserves_reserved_id_and_does_not_block_grading(grading_
     assert response.status_code == 200 and response.json()["status"] == "grading"
     assert response.json()["drive_error"]
     with session() as db:
-        assert db.get(Proposal, pid).drive_folder_id == "reserved-folder"
+        assert db.get(Proposal, pid).drive_folder_id is None
         asyncio.run(google_drive.provision_evidence(db, pid))
         assert db.get(Proposal, pid).drive_ready
         assert db.get(Proposal, pid).drive_error is None

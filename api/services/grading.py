@@ -86,12 +86,7 @@ def queue_notice(db: Session, grading, milestone):
         message = f"✅ Self-assessment submitted: <b>{title}</b>\n{escape(proposal.committee.name)} · Ready for admin grading."
     else:
         heading = "Grading is open — you have 14 days" if milestone == "started" else f"Grading reminder — {milestone} day(s) until the deadline"
-        message = f"📝 {heading}\n<b>{title}</b> · {escape(proposal.committee.name)}\nDue: {due}\nSave a draft or submit your self-assessment in the proposal."
-    url = get_settings().telegram_webapp_url
-    if url:
-        if not url.startswith(("https://", "http://")):
-            url = "https://" + url
-        message += f'\n<a href="{escape(url.rstrip('/') + '/#proposal/' + str(proposal.id), quote=True)}">Open proposal</a>'
+        message = f"📝 {heading}\n<b>{title}</b> · {escape(proposal.committee.name)}\nDue: {due}\nSubmit your self-assessment for <b>{title}</b>."
     for recipient in recipients:
         existing = db.query(GradingNotification).filter_by(proposal_id=proposal.id, milestone=milestone, telegram_id=recipient).first()
         if existing is None:

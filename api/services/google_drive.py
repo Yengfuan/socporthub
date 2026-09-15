@@ -50,20 +50,25 @@ async def provision_evidence(db: Session, proposal_id: int):
         token = await asyncio.to_thread(_access_token)
         async with httpx.AsyncClient(headers={"Authorization": f"Bearer {token}"}, timeout=45) as client:
             if not proposal.drive_folder_id:
-                response = await client.get(f"{BASE}/files/generateIds", params={"count": 2, "space": "drive", "type": "files"})
+                response = await client.get(f"{BASE}/files", params={
+                    "q": f"'{parent}' in parents and trashed = false and appProperties has {{ key = 'proposal_id' and value = '{proposal.id}' }}",
+                    "spaces": "drive", "includeItemsFromAllDrives": "true", "supportsAllDrives": "true",
+                    "fields": "files(id,name,mimeType)",
+                })
                 response.raise_for_status()
-                proposal.drive_folder_id, proposal.drive_pdf_id = response.json()["ids"]
-                # Reserve IDs before external creation, so a crash/retry reuses them.
+                existing_folder = next((item for item in response.json().get("files", []) if item.get("mimeType") == "application/vnd.google-apps.folder"), None)
+                if existing_folder:
+                    proposal.drive_folder_id = existing_folder["id"]
+                else:
+                    response = await client.post(f"{BASE}/files", params={"supportsAllDrives": "true"}, json={
+                        "name": f"{proposal.committee.name}-{proposal.title}",
+                        "mimeType": "application/vnd.google-apps.folder", "parents": [parent],
+                        "appProperties": {"proposal_id": str(proposal.id)},
+                    })
+                    response.raise_for_status()
+                    proposal.drive_folder_id = response.json()["id"]
                 db.commit()
             if not proposal.drive_ready:
-                response = await client.post(f"{BASE}/files", params={"supportsAllDrives": "true"}, json={
-                    "id": proposal.drive_folder_id,
-                    "name": f"{proposal.committee.name}-{proposal.title}",
-                    "mimeType": "application/vnd.google-apps.folder", "parents": [parent],
-                    "appProperties": {"proposal_id": str(proposal.id)},
-                })
-                if response.status_code != 409:  # Same reserved ID already created.
-                    response.raise_for_status()
                 proposal.drive_ready = True
                 db.commit()
             # Grant only the submitter upload access. Admin access is inherited
@@ -85,13 +90,39 @@ async def provision_evidence(db: Session, proposal_id: int):
                         response.raise_for_status()
                 else:
                     response.raise_for_status()
+            elif proposal.doc_link:
+                # Search by proposal_id before uploading so a retry after a lost
+                # upload response does not create a second PDF.
+                response = await client.get(f"{BASE}/files", params={
+                    "q": f"'{proposal.drive_folder_id}' in parents and trashed = false and appProperties has {{ key = 'proposal_id' and value = '{proposal.id}' }}",
+                    "spaces": "drive", "includeItemsFromAllDrives": "true", "supportsAllDrives": "true",
+                    "fields": "files(id,name,mimeType)",
+                })
+                response.raise_for_status()
+                pdf_file = next((item for item in response.json().get("files", []) if item.get("mimeType") == "application/pdf"), None)
+                if pdf_file:
+                    proposal.drive_pdf_id = pdf_file["id"]
+                else:
+                    _, pdf = await download_google_doc_pdf(proposal.doc_link)
+                    metadata = {"name": proposal_pdf_filename(proposal.title, proposal.committee.name), "parents": [proposal.drive_folder_id], "appProperties": {"proposal_id": str(proposal.id)}}
+                    boundary = "rh_proposal_pdf_boundary"
+                    data = (f"--{boundary}\r\nContent-Type: application/json; charset=UTF-8\r\n\r\n{json.dumps(metadata)}\r\n--{boundary}\r\nContent-Type: application/pdf\r\n\r\n").encode() + pdf + f"\r\n--{boundary}--\r\n".encode()
+                    response = await client.post("https://www.googleapis.com/upload/drive/v3/files", params={"uploadType": "multipart", "supportsAllDrives": "true"}, headers={"Content-Type": f"multipart/related; boundary={boundary}"}, content=data)
+                    response.raise_for_status()
+                    proposal.drive_pdf_id = response.json()["id"]
+                db.commit()
         proposal.drive_error = None
         db.commit()
-    except Exception:
+    except Exception as exc:
         db.rollback()
         # Don't expose credentials/provider responses to users. Keep the folder
         # usable if only PDF export or sharing failed, and retry in the scheduler.
         proposal = db.get(Proposal, proposal_id)
         proposal.drive_error = "Evidence setup is incomplete. Folder access or PDF copying will be retried."
         db.commit()
-        logger.warning("Evidence setup failed for proposal %s", proposal_id)
+        detail = str(exc).replace("\n", " ")
+        if isinstance(exc, httpx.HTTPStatusError):
+            detail = f"Google Drive returned HTTP {exc.response.status_code}: {exc.response.text}"
+        if len(detail) > 500:
+            detail = detail[:500] + "…"
+        logger.warning("Evidence setup failed for proposal %s: %s", proposal_id, detail)
