@@ -154,6 +154,10 @@ export function renderNewProposal(root, navigate, user) {
             <label for="event_time">Event time <span data-event-time-hint></span></label>
             <input type="time" id="event_time" name="event_time" value="${escapeHtml(saved.event_time)}" />
           </div>
+          <div class="field" data-poster-field>
+            <label for="poster">Poster <span class="field-hint">Required for Event, Initiative, Welfare, and Merch</span></label>
+            <input type="file" id="poster" name="poster" accept="image/jpeg,image/png,image/webp,application/pdf" />
+          </div>
           <div class="field">
             <label for="doc_link">Link / PDF URL <span data-doc-hint></span></label>
             <input type="url" id="doc_link" name="doc_link" placeholder="https://" value="${escapeHtml(saved.doc_link)}" />
@@ -186,10 +190,6 @@ export function renderNewProposal(root, navigate, user) {
         <div class="proposal-section-content">
           <p class="media-autofill-note"><strong>Autofill available:</strong> only Tech Crew and AnG can be autofilled for now.</p>
           <p class="form-disclaimer">Please note: not all fields in the external CCA forms can be filled in automatically. Review each form and complete any remaining fields before submitting it.</p>
-          <div class="field" data-poster-field>
-            <label for="poster">Poster <span class="field-hint">Required for Event, Initiative, Welfare, and Merch</span></label>
-            <input type="file" id="poster" name="poster" accept="image/jpeg,image/png,image/webp,application/pdf" />
-          </div>
           <div class="field">
             <label for="requested_ccas">External CCAs to request (optional)</label>
         <div id="requested_ccas" class="cca-request-list">
@@ -625,10 +625,6 @@ function renderEditForm(slot, proposal, navigate, onSaved) {
         <label for="e-event_time">Event time <span data-event-time-hint></span></label>
         <input type="time" id="e-event_time" value="${proposal.event_time || ""}" />
       </div>
-      <div class="field">
-        <label for="e-doc_link">Link / PDF URL <span data-doc-hint></span></label>
-        <input type="url" id="e-doc_link" value="${escapeHtml(proposal.doc_link)}" placeholder="https://" />
-      </div>
       <div class="field" data-poster-field>
         <label for="e-poster">Poster <span class="field-hint">Required for Event, Initiative, Welfare, and Merch</span></label>
         ${
@@ -637,6 +633,10 @@ function renderEditForm(slot, proposal, navigate, onSaved) {
             : ""
         }
         <input type="file" id="e-poster" accept="image/jpeg,image/png,image/webp,application/pdf" />
+      </div>
+      <div class="field">
+        <label for="e-doc_link">Link / PDF URL <span data-doc-hint></span></label>
+        <input type="url" id="e-doc_link" value="${escapeHtml(proposal.doc_link)}" placeholder="https://" />
       </div>
       <div class="field">
         <label for="e-blast_message" data-blast-label>Blast message</label>
