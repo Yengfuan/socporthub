@@ -267,6 +267,8 @@ a {
 .grading-evidence h3 { margin: 0 0 5px; font-size: 14px; }
 .grading-evidence p { font-size: 12px; line-height: 1.5; margin-bottom: 10px; }
 .grading-evidence-icon { flex: 0 0 32px; height: 32px; background: white; border: 1px solid var(--border); border-radius: 8px; text-align: center; line-height: 30px; color: #5e799e; }
+.grading-evidence-actions { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; }
+.grading-evidence-actions .btn { width: auto; padding: 10px 12px; }
 .grading-drive-link { font-size: 13px; font-weight: 600; text-decoration: underline; text-underline-offset: 3px; }
 .grading-actions { display: flex; gap: 10px; margin: 14px 0 10px; }
 .grading-actions .btn { flex: 1; width: auto; padding: 12px 8px; font-size: 13px; }

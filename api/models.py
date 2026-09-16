@@ -212,6 +212,7 @@ class ProposalGrading(Base):
     user_submitted_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     admin_submitted_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     admin_author_id: Mapped[int | None] = mapped_column(ForeignKey("users.id"))
+    evidence_done_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     proposal: Mapped["Proposal"] = relationship()
 
 

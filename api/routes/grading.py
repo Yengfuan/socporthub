@@ -45,6 +45,7 @@ def grading_out(db, proposal, user):
         "admin_submitted_at": aware(grading.admin_submitted_at).isoformat() if grading and grading.admin_submitted_at else None,
         "drive_url": folder_url(proposal),
         "drive_error": proposal.drive_error,
+        "evidence_done_at": aware(grading.evidence_done_at).isoformat() if grading and grading.evidence_done_at else None,
     }
 
 
@@ -119,4 +120,20 @@ async def retry_evidence(proposal_id: int, db: Session = Depends(get_db), user: 
         raise HTTPException(409, "Submit the proposal before preparing evidence")
     await provision_evidence(db, proposal.id)
     db.refresh(proposal)
+    return grading_out(db, proposal, user)
+
+
+@router.post("/{proposal_id}/grading/evidence/done", dependencies=[Depends(enabled)])
+async def mark_evidence_done(proposal_id: int, db: Session = Depends(get_db), user: User = Depends(get_current_user)):
+    proposal = get_visible_proposal(db, user, proposal_id)
+    if not can_grade_proposal(user, proposal) and user.id != proposal.submitted_by:
+        raise HTTPException(403, "Only the submitter or committee grader can mark evidence done")
+    grading = db.query(ProposalGrading).filter_by(proposal_id=proposal.id).with_for_update().first()
+    if grading is None:
+        raise HTTPException(409, "An admin must open grading first")
+    if not folder_url(proposal):
+        raise HTTPException(409, "Prepare the Google Drive folder first")
+    if not grading.evidence_done_at:
+        grading.evidence_done_at = utcnow()
+        db.commit()
     return grading_out(db, proposal, user)

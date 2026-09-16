@@ -140,6 +140,20 @@ def test_same_committee_peer_can_submit_admin_grade(grading_client):
         assert grading.admin_author_id == peer.id
 
 
+def test_same_committee_peer_can_mark_evidence_done(grading_client):
+    c = grading_client
+    pid = proposal(tid=1001)
+    assert start(c, pid).status_code == 200
+    with session() as db:
+        p = db.get(Proposal, pid)
+        p.drive_ready = True
+        p.drive_folder_id = "folder-id"
+        db.commit()
+    response = c.post(f"/api/proposals/{pid}/grading/evidence/done", headers=auth_header(1003))
+    assert response.status_code == 200, response.text
+    assert response.json()["evidence_done_at"] is not None
+
+
 @pytest.mark.parametrize("category", list(RUBRICS))
 @pytest.mark.parametrize("score", [0, 10])
 def test_every_rubric_and_boundary_scores(grading_client, category, score):
