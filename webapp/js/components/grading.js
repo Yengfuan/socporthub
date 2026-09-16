@@ -40,7 +40,7 @@ export async function renderGrading(slot, user, proposal, refresh) {
   try {
     const data = await api.get(`/api/proposals/${proposal.id}/grading`);
     if (!data.rubric || (!data.started_at && !data.can_start)) { slot.innerHTML = ""; return; }
-    const admin = user.role === "admin";
+    const grader = data.can_grade;
     if (data.can_start) {
       slot.innerHTML = `<section class="card grading-open"><div><span class="grading-eyebrow">POST-EVENT REVIEW</span><h2>Ready for grading</h2><p>Open a 14-day window for the submitter to rate this proposal and share photo evidence.</p></div><button class="btn" data-start-grading>Grade</button><div class="grading-error" role="alert"></div></section>`;
       slot.querySelector("[data-start-grading]").addEventListener("click", async (event) => {
@@ -50,24 +50,24 @@ export async function renderGrading(slot, user, proposal, refresh) {
       });
       return;
     }
-    const editable = admin ? data.can_edit_admin : data.can_edit_user;
-    const assessment = (admin ? data.admin_assessment : data.user_assessment) || {};
-    const selections = assessment.selections || (admin ? data.user_assessment?.selections : []) || [];
+    const editable = grader ? data.can_edit_admin : data.can_edit_user;
+    const assessment = (grader ? data.admin_assessment : data.user_assessment) || {};
+    const selections = assessment.selections || (grader ? data.user_assessment?.selections : []) || [];
     const rubric = data.rubric;
     slot.innerHTML = `<section class="card grading-card">
-      <div class="grading-heading"><div><span class="grading-eyebrow">POST-EVENT REVIEW</span><h2>${admin ? "Proposal grading" : "Your self-assessment"}</h2></div><span class="badge badge-${data.status}">${data.status === "final" ? "Final" : "Grading"}</span></div>
+      <div class="grading-heading"><div><span class="grading-eyebrow">POST-EVENT REVIEW</span><h2>${grader ? "Proposal grading" : "Your self-assessment"}</h2></div><span class="badge badge-${data.status}">${data.status === "final" ? "Final" : "Grading"}</span></div>
       ${data.status === "grading" ? `<div class="grading-deadline" role="status"><strong data-grading-countdown></strong><span>Submit by ${new Date(data.deadline).toLocaleString()}. You have 2 weeks from the start of grading.</span></div>` : `<div class="grading-complete" role="status">Self-assessment submitted. ${data.admin_submitted_at ? "Admin grading is complete." : "Ready for admin review."}</div>`}
-      ${admin ? summary("User self-assessment", data.user_assessment, rubric, data.user_submitted_at) : ""}
+      ${grader ? summary("User self-assessment", data.user_assessment, rubric, data.user_submitted_at) : ""}
       ${editable ? `<form class="grading-form" novalidate>
-        <h3>${admin ? "Admin assessment" : "Rate your proposal"}</h3>
+        <h3>${grader ? "Admin assessment" : "Rate your proposal"}</h3>
         <p class="grading-scale">Each field is rated from <strong>0 to 10</strong>. <strong>0 = not applicable</strong>; <strong>10 = maximum</strong>. Explain your score below each field.</p>
         ${rubric.options ? `<fieldset class="grading-options"><legend>${rubric.multiple ? "Select all that apply" : "Select one type"}</legend><div>${rubric.options.map((option) => `<label><input type="${rubric.multiple ? "checkbox" : "radio"}" name="grading-selection" value="${option}" ${selections.includes(option) ? "checked" : ""} /><span>${esc(label(option))}</span></label>`).join("")}</div></fieldset>` : ""}
         ${rubric.fields.map((field, index) => `<fieldset class="grading-field"><legend><span>${String(index + 1).padStart(2, "0")}</span> ${esc(label(field))}</legend><div class="grading-score"><label for="grade-${field}">Your rating</label><div><input type="number" id="grade-${field}" data-score="${field}" min="0" max="10" step="1" inputmode="numeric" value="${assessment.ratings?.[field]?.score ?? ""}" placeholder="—" /><span>/ 10</span></div></div><label for="justify-${field}">Justification</label><textarea id="justify-${field}" data-justification="${field}" maxlength="5000" placeholder="Explain why this score reflects the work done…">${esc(assessment.ratings?.[field]?.justification)}</textarea></fieldset>`).join("")}
         <div class="grading-evidence"><div class="grading-evidence-icon" aria-hidden="true">↗</div><div><h3>Photo evidence & proposal PDF</h3><p>Upload photos that support your ratings to your proposal folder.</p>${data.drive_url ? `<a href="${esc(data.drive_url)}" target="_blank" rel="noopener" class="grading-drive-link">Open Google Drive folder ↗</a>` : `<p>Evidence folder is being prepared.</p>${data.drive_error ? `<p class="field-hint">${esc(data.drive_error)}</p>` : ""}<button class="btn btn-secondary" type="button" data-retry-evidence>Retry folder setup</button>`}</div></div>
         <div class="grading-feedback" role="status"></div>
-        <div class="grading-actions"><button class="btn btn-secondary" type="button" data-save-grade>Save Draft</button><button class="btn" type="submit" ${admin && !data.user_submitted_at ? "disabled" : ""}>${admin ? "Submit Admin Grade" : "Submit Self-assessment"}</button></div>
-        <p class="field-hint">${admin && !data.user_submitted_at ? "You can draft your scores now and submit after the user submits." : "You can edit saved drafts. Submitted assessments are locked."}</p>
-      </form>` : `${!admin ? summary("Your submitted scores", data.user_assessment, rubric, data.user_submitted_at) : ""}${data.admin_submitted_at ? summary("Admin assessment", data.admin_assessment, rubric, data.admin_submitted_at) : ""}
+        <div class="grading-actions"><button class="btn btn-secondary" type="button" data-save-grade>Save Draft</button><button class="btn" type="submit" ${grader && !data.user_submitted_at ? "disabled" : ""}>${grader ? "Submit Admin Grade" : "Submit Self-assessment"}</button></div>
+        <p class="field-hint">${grader && !data.user_submitted_at ? "You can draft your scores now and submit after the user submits." : "You can edit saved drafts. Submitted assessments are locked."}</p>
+      </form>` : `${!grader ? summary("Your submitted scores", data.user_assessment, rubric, data.user_submitted_at) : ""}${data.admin_submitted_at ? summary("Admin assessment", data.admin_assessment, rubric, data.admin_submitted_at) : ""}
         ${data.drive_url ? `<div class="grading-evidence"><a href="${esc(data.drive_url)}" target="_blank" rel="noopener" class="grading-drive-link">Open Google Drive folder ↗</a></div>` : ""}`}
     </section>`;
     if (data.status === "grading") countdown(slot, data.deadline);

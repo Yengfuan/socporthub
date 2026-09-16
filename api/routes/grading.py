@@ -20,20 +20,27 @@ def enabled():
         raise HTTPException(404, "Grading is not enabled")
 
 
+def can_grade_proposal(user: User, proposal: Proposal) -> bool:
+    return user.role == UserRole.admin or (
+        user.id != proposal.submitted_by and proposal.committee_id in user.committee_ids
+    )
+
+
 def grading_out(db, proposal, user):
     grading = db.get(ProposalGrading, proposal.id)
-    admin = user.role == UserRole.admin
+    grader = can_grade_proposal(user, proposal)
     owner = user.id == proposal.submitted_by
     return {
         "rubric": RUBRICS.get(proposal.category.value),
         "status": proposal.status.value,
-        "can_start": admin and proposal.status == ProposalStatus.finished and proposal.category.value in RUBRICS,
-        "can_edit_user": owner and not admin and proposal.status == ProposalStatus.grading,
-        "can_edit_admin": admin and grading is not None and grading.admin_submitted_at is None,
+        "can_grade": grader,
+        "can_start": user.role == UserRole.admin and proposal.status == ProposalStatus.finished and proposal.category.value in RUBRICS,
+        "can_edit_user": owner and not grader and proposal.status == ProposalStatus.grading,
+        "can_edit_admin": grader and grading is not None and grading.admin_submitted_at is None,
         "started_at": aware(grading.started_at).isoformat() if grading else None,
         "deadline": aware(grading.deadline).isoformat() if grading else None,
         "user_assessment": json.loads(grading.user_data) if grading and (owner or grading.user_submitted_at) else None,
-        "admin_assessment": json.loads(grading.admin_data) if grading and (admin or grading.admin_submitted_at) else None,
+        "admin_assessment": json.loads(grading.admin_data) if grading and (grader or grading.admin_submitted_at) else None,
         "user_submitted_at": aware(grading.user_submitted_at).isoformat() if grading and grading.user_submitted_at else None,
         "admin_submitted_at": aware(grading.admin_submitted_at).isoformat() if grading and grading.admin_submitted_at else None,
         "drive_url": folder_url(proposal),
@@ -75,10 +82,10 @@ async def save_grading(proposal_id: int, req: AssessmentRequest, db: Session = D
     grading = db.query(ProposalGrading).filter_by(proposal_id=proposal.id).with_for_update().first()
     if grading is None:
         raise HTTPException(409, "An admin must open grading first")
-    admin = user.role == UserRole.admin
-    if not admin and user.id != proposal.submitted_by:
+    grader = can_grade_proposal(user, proposal)
+    if not grader and user.id != proposal.submitted_by:
         raise HTTPException(403, "Only the proposal submitter can edit the self-assessment")
-    if admin:
+    if grader:
         if grading.admin_submitted_at:
             raise HTTPException(409, "The admin assessment has already been submitted")
         if req.submit and not grading.user_submitted_at:
@@ -86,7 +93,7 @@ async def save_grading(proposal_id: int, req: AssessmentRequest, db: Session = D
     elif proposal.status != ProposalStatus.grading or grading.user_submitted_at:
         raise HTTPException(409, "The self-assessment has already been submitted")
     data = validate_assessment(req, proposal.category.value)
-    if admin:
+    if grader:
         grading.admin_data = data
         grading.admin_author_id = user.id
         if req.submit:
