@@ -45,7 +45,8 @@ export async function renderGrading(slot, user, proposal, refresh) {
     const peerGrader = grader && !isAdmin;
     const submitterName = proposal.submitter_name || "the submitter";
     const submitterPossessive = `${submitterName}${submitterName.endsWith("s") ? "'" : "'s"}`;
-    const heading = peerGrader ? `Grade ${esc(submitterPossessive)} proposal` : grader ? "Proposal grading" : "Your self-assessment";
+    const categoryLabel = label(proposal.category);
+    const heading = peerGrader ? `Grade the ${esc(categoryLabel)}` : grader ? "Proposal grading" : "Your self-assessment";
     const selfAssessmentTitle = peerGrader ? `${esc(submitterPossessive)} self-assessment` : "User self-assessment";
     const graderAssessmentTitle = isAdmin ? "Admin assessment" : "Committee assessment";
     const formTitle = peerGrader ? `Your assessment for ${esc(submitterName)}` : grader ? graderAssessmentTitle : "User self-assessment";
