@@ -100,6 +100,13 @@ export async function renderGrading(slot, user, proposal, refresh) {
       button.addEventListener("click", async () => {
         button.disabled = true;
         try {
+          // Marking evidence done refreshes the proposal detail. Persist any
+          // grading changes in the form first so the refresh cannot discard
+          // the user's in-progress assessment.
+          if (editable && !(await save(false))) {
+            button.disabled = false;
+            return;
+          }
           await api.post(`/api/proposals/${proposal.id}/grading/evidence/done`, {});
           await refresh();
         } catch (err) {
@@ -136,8 +143,9 @@ export async function renderGrading(slot, user, proposal, refresh) {
         await api.put(`/api/proposals/${proposal.id}/grading`, { ratings, selections: selected, submit });
         if (submit) await refresh();
         else { feedback.textContent = `Draft saved at ${new Date().toLocaleTimeString()}.`; feedback.className = "grading-feedback grading-saved"; }
-      } catch (err) { feedback.textContent = err.message; feedback.className = "grading-feedback grading-error"; }
+      } catch (err) { feedback.textContent = err.message; feedback.className = "grading-feedback grading-error"; return false; }
       finally { buttons.forEach((button, index) => { button.disabled = disabled[index]; }); }
+      return true;
     }
     form.addEventListener("submit", (event) => { event.preventDefault(); save(true); });
     form.querySelector("[data-save-grade]").addEventListener("click", () => save(false));

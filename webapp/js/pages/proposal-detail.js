@@ -1,5 +1,5 @@
 import { api } from "../api.js";
-import { renderGrading } from "../components/grading.js";
+import { renderGrading } from "../components/grading.js?v=grading-3";
 import { statusBadge } from "../components/status-badge.js";
 import { renderDisposableSection } from "../components/disposable-form.js";
 import { collectExternalFormData, loadCommitteeFormFields, renderCommitteeFormsSection } from "../components/committee-forms.js";
