@@ -112,7 +112,10 @@ def test_portfolio_and_owner_access(grading_client):
     assert c.get(f"/api/proposals/{pid}/grading", headers=auth_header(998)).status_code == 404
     assert save(c, pid, complete(), 998).status_code == 404
     assert save(c, pid, complete(), 1002).status_code == 404
-    assert save(c, pid, complete(), 1003).status_code == 403
+    peer_view = c.get(f"/api/proposals/{pid}/grading", headers=auth_header(1003))
+    assert peer_view.status_code == 200
+    assert peer_view.json()["can_grade"] is True
+    assert save(c, pid, {"ratings": {"food": {"score": 6, "justification": "Peer review draft"}}}, 1003).status_code == 200
     welfare = proposal("initiative", tid=1002)
     assert start(c, welfare, 999).status_code == 404
     assert start(c, welfare, 998).status_code == 200
@@ -120,6 +123,35 @@ def test_portfolio_and_owner_access(grading_client):
     with session() as db:
         notices = db.query(GradingNotification).filter_by(proposal_id=welfare).all()
         assert {n.telegram_id for n in notices} == {998, 1002}
+
+
+def test_same_committee_peer_can_submit_admin_grade(grading_client):
+    c = grading_client
+    pid = proposal(tid=1001)
+    assert start(c, pid).status_code == 200
+    self_assessment = save(c, pid, complete(), 1001)
+    assert self_assessment.status_code == 200, self_assessment.text
+    peer_grade = save(c, pid, complete(score=9), 1003)
+    assert peer_grade.status_code == 200, peer_grade.text
+    assert peer_grade.json()["admin_submitted_at"] is not None
+    with session() as db:
+        peer = db.query(User).filter_by(telegram_id=1003).one()
+        grading = db.get(ProposalGrading, pid)
+        assert grading.admin_author_id == peer.id
+
+
+def test_same_committee_peer_can_mark_evidence_done(grading_client):
+    c = grading_client
+    pid = proposal(tid=1001)
+    assert start(c, pid).status_code == 200
+    with session() as db:
+        p = db.get(Proposal, pid)
+        p.drive_ready = True
+        p.drive_folder_id = "folder-id"
+        db.commit()
+    response = c.post(f"/api/proposals/{pid}/grading/evidence/done", headers=auth_header(1003))
+    assert response.status_code == 200, response.text
+    assert response.json()["evidence_done_at"] is not None
 
 
 @pytest.mark.parametrize("category", list(RUBRICS))
