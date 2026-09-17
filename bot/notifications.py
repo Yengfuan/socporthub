@@ -22,7 +22,6 @@ def _admin_ids(portfolio: Portfolio | None = None) -> set[int]:
 
 
 async def notify_admins_new_registration(display_name: str | None, email: str) -> None:
-    settings = get_settings()
     text = f"\U0001f4dd New registration pending approval: <b>{display_name or email}</b> ({email})"
     for admin_id in _admin_ids():
         await send_message(admin_id, text)

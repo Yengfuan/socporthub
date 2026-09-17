@@ -44,11 +44,22 @@ async def create_reminder(req: ReminderCreate, db: Session = Depends(get_db), us
         raise HTTPException(status.HTTP_400_BAD_REQUEST, "General reminders cannot have a target")
     if req.target_type == ReminderTargetType.proposal:
         proposal = db.get(Proposal, req.target_id) if req.target_id else None
-        if not proposal or (user.role != UserRole.admin and proposal.committee_id not in user.committee_ids):
+        if not proposal or (
+            user.role != UserRole.admin
+            and proposal.committee_id not in user.committee_ids
+        ) or (
+            user.role == UserRole.admin
+            and not admin_can_access_committee(user, proposal.committee)
+        ):
             raise HTTPException(status.HTTP_404_NOT_FOUND, "Proposal not found")
     if req.target_type == ReminderTargetType.disposable:
         disposable = db.get(DisposableRequest, req.target_id) if req.target_id else None
-        if not disposable or (user.role != UserRole.admin and disposable.requested_by != user.id):
+        if not disposable or (
+            user.role != UserRole.admin and disposable.requested_by != user.id
+        ) or (
+            user.role == UserRole.admin
+            and not admin_can_access_committee(user, disposable.proposal.committee)
+        ):
             raise HTTPException(status.HTTP_404_NOT_FOUND, "Disposable request not found")
 
     reminder = Reminder(

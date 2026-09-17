@@ -96,6 +96,7 @@ def queue_notice(db: Session, grading, milestone):
 
 async def process_grading_notifications(db: Session, now=None):
     """Run each minute; persisted deliveries survive app restarts."""
+    settings = get_settings()
     now = now or utcnow()
     active = db.query(ProposalGrading).all()
     for grading in active:
@@ -118,14 +119,13 @@ async def process_grading_notifications(db: Session, now=None):
         # Recheck portfolio recipients in case configuration changed while queued.
         allowed = admin_ids(grading.proposal)
         if notice.milestone != "submitted":
-            allowed = (allowed if get_settings().grading_remind_admins else set()) | {grading.proposal.submitter.telegram_id}
+            allowed = (allowed if settings.grading_remind_admins else set()) | {grading.proposal.submitter.telegram_id}
         if notice.telegram_id not in allowed:
             continue
         try:
-            if not get_settings().telegram_bot_token:
+            if not settings.telegram_bot_token:
                 continue
-            else:
-                await send_message(notice.telegram_id, notice.message, raise_on_error=True)
+            await send_message(notice.telegram_id, notice.message, raise_on_error=True)
             notice.sent_at = now
             db.commit()
         except Exception:

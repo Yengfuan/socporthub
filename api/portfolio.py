@@ -1,5 +1,5 @@
 from api.auth import admin_portfolio
-from api.models import Committee, Portfolio, ProposalCategory, User
+from api.models import Committee, Portfolio, ProposalCategory, User, UserRole
 from sqlalchemy import and_, or_
 
 
@@ -49,7 +49,7 @@ def category_allowed_for_committee(committee: Committee, category: ProposalCateg
 
 
 def admin_can_access_committee(user: User, committee: Committee) -> bool:
-    return user.role.value != "admin" or committee_portfolio(committee) == admin_portfolio(user)
+    return user.role != UserRole.admin or committee_portfolio(committee) == admin_portfolio(user)
 
 
 def admin_committee_filter(user: User):

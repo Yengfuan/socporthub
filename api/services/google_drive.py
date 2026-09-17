@@ -36,6 +36,24 @@ def _access_token():
     return credentials.token
 
 
+async def _upload_pdf(client: httpx.AsyncClient, metadata: dict, pdf: bytes) -> dict:
+    """Upload a PDF with Drive's multipart endpoint and return its metadata."""
+    boundary = "rh_proposal_pdf_boundary"
+    data = (
+        f"--{boundary}\r\nContent-Type: application/json; charset=UTF-8\r\n\r\n"
+        f"{json.dumps(metadata)}\r\n"
+        f"--{boundary}\r\nContent-Type: application/pdf\r\n\r\n"
+    ).encode() + pdf + f"\r\n--{boundary}--\r\n".encode()
+    response = await client.post(
+        "https://www.googleapis.com/upload/drive/v3/files",
+        params={"uploadType": "multipart", "supportsAllDrives": "true"},
+        headers={"Content-Type": f"multipart/related; boundary={boundary}"},
+        content=data,
+    )
+    response.raise_for_status()
+    return response.json()
+
+
 async def provision_evidence(db: Session, proposal_id: int):
     settings = get_settings()
     if not settings.grading_enabled or settings.google_drive_mode == "disabled":
@@ -83,11 +101,11 @@ async def provision_evidence(db: Session, proposal_id: int):
                 if response.status_code == 404:
                     _, pdf = await download_google_doc_pdf(proposal.doc_link)
                     metadata = {"id": proposal.drive_pdf_id, "name": proposal_pdf_filename(proposal.title, proposal.committee.name), "parents": [proposal.drive_folder_id]}
-                    boundary = "rh_proposal_pdf_boundary"
-                    data = (f"--{boundary}\r\nContent-Type: application/json; charset=UTF-8\r\n\r\n{json.dumps(metadata)}\r\n--{boundary}\r\nContent-Type: application/pdf\r\n\r\n").encode() + pdf + f"\r\n--{boundary}--\r\n".encode()
-                    response = await client.post("https://www.googleapis.com/upload/drive/v3/files", params={"uploadType": "multipart", "supportsAllDrives": "true"}, headers={"Content-Type": f"multipart/related; boundary={boundary}"}, content=data)
-                    if response.status_code != 409:
-                        response.raise_for_status()
+                    try:
+                        await _upload_pdf(client, metadata, pdf)
+                    except httpx.HTTPStatusError as exc:
+                        if exc.response.status_code != 409:
+                            raise
                 else:
                     response.raise_for_status()
             elif proposal.doc_link:
@@ -105,11 +123,7 @@ async def provision_evidence(db: Session, proposal_id: int):
                 else:
                     _, pdf = await download_google_doc_pdf(proposal.doc_link)
                     metadata = {"name": proposal_pdf_filename(proposal.title, proposal.committee.name), "parents": [proposal.drive_folder_id], "appProperties": {"proposal_id": str(proposal.id)}}
-                    boundary = "rh_proposal_pdf_boundary"
-                    data = (f"--{boundary}\r\nContent-Type: application/json; charset=UTF-8\r\n\r\n{json.dumps(metadata)}\r\n--{boundary}\r\nContent-Type: application/pdf\r\n\r\n").encode() + pdf + f"\r\n--{boundary}--\r\n".encode()
-                    response = await client.post("https://www.googleapis.com/upload/drive/v3/files", params={"uploadType": "multipart", "supportsAllDrives": "true"}, headers={"Content-Type": f"multipart/related; boundary={boundary}"}, content=data)
-                    response.raise_for_status()
-                    proposal.drive_pdf_id = response.json()["id"]
+                    proposal.drive_pdf_id = (await _upload_pdf(client, metadata, pdf))["id"]
                 db.commit()
         proposal.drive_error = None
         db.commit()

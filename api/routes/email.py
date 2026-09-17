@@ -9,9 +9,8 @@ from api.models import EmailDraft, Portfolio, Proposal, ProposalStatus, User, Us
 from api.portfolio import committee_portfolio, sends_confirmation_email
 from api.schemas import EmailDraftOut, EmailDraftUpdate
 from api.services.resend_email import send_email
-from api.services.google_docs import PDF_ATTACHMENT_LIMIT_BYTES, download_google_doc_pdf, proposal_pdf_filename
-from api.services.document_links import document_download_url
 from api.config import get_settings
+from api.services.email_attachments import proposal_pdf_attachment
 from bot.notifications import notify_user_email_sent
 
 router = APIRouter(prefix="/api/email", tags=["email"])
@@ -152,14 +151,7 @@ async def send_proposal_email(
         draft.body = safe_body
         db.commit()
         db.refresh(draft)
-    attachment = None
-    large_pdf_link = None
-    if proposal.doc_link:
-        _, pdf = await download_google_doc_pdf(proposal.doc_link)
-        if len(pdf) <= PDF_ATTACHMENT_LIMIT_BYTES:
-            attachment = (proposal_pdf_filename(proposal.title, proposal.committee.name), pdf)
-        else:
-            large_pdf_link = document_download_url(proposal.id)
+    attachment, large_pdf_link = await proposal_pdf_attachment(proposal)
     body = draft.body
     if large_pdf_link:
         body += f"\n\nThe proposal PDF is too large to attach. Download it here: {large_pdf_link}"

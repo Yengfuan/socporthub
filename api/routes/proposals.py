@@ -42,8 +42,9 @@ from bot.notifications import (
     send_proposal_announcement,
 )
 from api.routes.email import _committee_ccs, _generated, _without_links
-from api.services.google_docs import PDF_ATTACHMENT_LIMIT_BYTES, download_google_doc_pdf, proposal_pdf_filename
-from api.services.document_links import document_download_url, verify_document_token
+from api.services.google_docs import download_google_doc_pdf, proposal_pdf_filename
+from api.services.document_links import verify_document_token
+from api.services.email_attachments import proposal_pdf_attachment
 from api.services.resend_email import send_email
 from api.services.grading import RUBRICS
 from api.services.google_drive import provision_evidence
@@ -349,14 +350,7 @@ async def update_proposal(
             subject, body = draft.subject, draft.body
         else:
             subject, body = _generated(proposal)
-        attachment = None
-        large_pdf_link = None
-        if proposal.doc_link:
-            _, pdf = await download_google_doc_pdf(proposal.doc_link)
-            if len(pdf) <= PDF_ATTACHMENT_LIMIT_BYTES:
-                attachment = (proposal_pdf_filename(proposal.title, proposal.committee.name), pdf)
-            else:
-                large_pdf_link = document_download_url(proposal.id)
+        attachment, large_pdf_link = await proposal_pdf_attachment(proposal)
         safe_body = _without_links(body)
         if large_pdf_link:
             safe_body += f"\n\nThe proposal PDF is too large to attach. Download it here: {large_pdf_link}"
