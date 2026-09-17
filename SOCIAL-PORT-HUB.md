@@ -560,8 +560,20 @@ SECRET_KEY=                   # For session/HMAC
 - [x] Allow admins to approve users and assign committees across portfolios
 - [ ] Add the Welfare Director's Telegram ID in Railway
 
-### Phase 7 — AI Reviewer [DEFERRED]
-- [ ] Google Docs API read access
+### Phase 7 — External Forms & Doc Automation
+- [x] Config-driven external CCA form linking (`GOOGLE_FORM_CONFIGS`) — no migration
+      needed to add a form
+- [x] Google Doc → PDF conversion for email attachments (`api/services/google_docs.py`)
+- [x] Telegram handle capture, richer status/comment history, UI polish pass
+
+### Phase 8 — Grading & Assessment
+- [x] Post-event rubric self-assessment (`grading` → `final` status), 14-day deadline
+- [x] Category rubrics (Event, Initiative, Decor/Pubs, Welfare, Pantry Cleaning)
+- [x] Google Drive evidence folders per proposal, gated by `GOOGLE_DRIVE_MODE`
+- [x] Scheduled Telegram deadline reminders (7/3/1 days out) with delivery receipts
+
+### Phase 9 — AI Reviewer [DEFERRED — FINAL PHASE]
+- [ ] Google Docs API read access (already available via `google_docs.py`; reuse it)
 - [ ] LLM integration for proposal review
 - [ ] Comment suggestion UI for admin vetting
 - [ ] Post-approved comments back to Google Doc

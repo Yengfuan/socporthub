@@ -1,19 +1,70 @@
 # Social Port Hub
 
-Telegram Bot + WebApp for consolidating Raffles Hall committee management under the
-Social Director. Full spec: [`SOCIAL-PORT-HUB.md`](./SOCIAL-PORT-HUB.md).
+A Telegram-native Bot + WebApp that replaces spreadsheets, group chats, and manual
+email drafting for running ~100-member student committees. Committee members submit
+event proposals, hall-disposables requests, and post-event self-assessments; a
+portfolio admin reviews, approves, and communicates — all from inside Telegram, with
+no separate login system.
 
-**Current status:** Phases 1–4 (Foundation + Core Proposals + Calendar, Disposables,
-Email & Reminders) —
-registration/approval, committees, the proposal lifecycle with comments, an in-app
-calendar with an iCalendar subscription feed, and hall disposables requests/approval.
-Email drafts/sending use Resend; reminders are stored in the app and delivered to admins
-via Telegram.
+Built solo end-to-end: schema design, API, background jobs, Telegram bot, and a
+vanilla-JS frontend, deployed on Railway.
 
-The calendar deviates from the original spec: instead of the Google Calendar API (which
-requires a GCP billing account), events live in our own database and are exposed via a
-free, open **iCalendar (.ics) feed** that anyone can subscribe to from Google/Apple/
-Outlook calendar apps — see "Calendar" below.
+Full product spec: [`SOCIAL-PORT-HUB.md`](./SOCIAL-PORT-HUB.md).
+
+## Highlights
+
+- **Zero-friction auth** — Telegram's `initData` is HMAC-validated server-side
+  (`api/auth.py`); no passwords, sessions, or separate account system.
+- **Server-enforced state machine** — proposals move through
+  `draft → in_review → submitted → finished → grading → final`, with every legal
+  transition (and who's allowed to trigger it) validated against
+  `PROPOSAL_STATUS_TRANSITIONS` in `api/models.py`, never trusted from the client.
+- **Multi-portfolio RBAC** — Social and Welfare are scoped independently (admins,
+  committees, notifications, email templates) via one small helper module
+  (`api/portfolio.py`) instead of scattered `if` checks.
+- **Post-event grading workflow** — category-specific rubrics, a 14-day
+  self-assessment window, scheduled Telegram reminders with delivery receipts, and
+  optional Google Drive evidence folders — all behind feature flags, off by default.
+- **Config-driven form linking** — new external (CCA) forms are added via one JSON
+  config entry (`GOOGLE_FORM_CONFIGS`), not a migration.
+- **Own calendar, no GCP bill** — events live in Postgres and are exposed as a public,
+  subscribable iCalendar feed (`GET /api/calendar/feed.ics`) instead of depending on
+  the paid Google Calendar API — see [Calendar](#calendar) for why.
+- **Fire-and-forget notifications** — every Telegram push is logged-and-continued on
+  failure so a flaky bot API call never blocks or rolls back the underlying DB write.
+- **Tested** — pytest suite covering auth, proposal lifecycle, calendar/disposables,
+  and grading (`tests/`); 22 reversible Alembic migrations, no hand-edited schema.
+
+## Tech stack
+
+| Layer | Choice | Why |
+|---|---|---|
+| Backend | FastAPI + sync SQLAlchemy 2.0 | Simplest correct choice at ~100 users; no async complexity to pay for |
+| Database | PostgreSQL + Alembic | Relational fits the domain; every schema change is a migration |
+| Bot | Raw Telegram Bot API over `httpx` | No bot framework; webhook runs inside the same FastAPI process |
+| Frontend | Vanilla JS SPA | No build step, served as static files by FastAPI |
+| Email | Resend | Admin-editable draft → send, auto-advances proposal status |
+| Docs/Drive | Google Docs & Drive APIs (service account) | PDF export for email attachments; evidence folders for grading |
+| Hosting | Railway | One process (`Procfile` runs migrations, then `uvicorn`) |
+
+## Status
+
+**Phases 1–8 shipped:** registration/approval, committees, the full proposal
+lifecycle (comments with replies, status history, category-specific requirements,
+poster/PDF/blast-message uploads), an in-app calendar with a public iCalendar feed,
+hall disposables requests/approval, admin email drafts/sending via Resend, reminders,
+Social/Welfare portfolio separation, config-driven external CCA form linking, and a
+post-event grading workflow with Google Drive evidence folders.
+
+**Phase 9 — AI Proposal Reviewer — is next and final** (deferred, not yet built): read
+a proposal's linked Google Doc, send it to an LLM for review, and let the admin vet
+suggested comments before they're posted back to the doc. See `SOCIAL-PORT-HUB.md` §11
+and `CLAUDE.md` for the current boundary between "built" and "spec only."
+
+The calendar deviates from the original spec: instead of the Google Calendar API
+(which requires a GCP billing account), events live in our own database and are
+exposed via a free, open **iCalendar (.ics) feed** that anyone can subscribe to from
+Google/Apple/Outlook calendar apps — see [Calendar](#calendar) below.
 
 ## Local development
 
@@ -30,9 +81,9 @@ alembic upgrade head
 uvicorn api.main:app --reload
 ```
 
-Phase 4 email sending requires `RESEND_API_KEY` and `RESEND_FROM_EMAIL` (a verified
-Resend sender). Without them, drafts and reminder features still work, but sending an
-email returns a clear configuration error.
+Email sending requires `RESEND_API_KEY` and `RESEND_FROM_EMAIL` (a verified Resend
+sender). Without them, drafts and reminder features still work, but sending an email
+returns a clear configuration error.
 
 The webapp is served at `/` from static files in `webapp/`; the API lives under `/api`.
 Health check: `GET /api/health`.
@@ -43,6 +94,13 @@ identity so you can open `http://localhost:8000` directly in a browser. Set
 `localStorage.dev_telegram_id` in devtools to switch identities (e.g. an ID listed in
 `ADMIN_TELEGRAM_IDS` to see the admin dashboard). This bypass is hard-disabled the
 moment `TELEGRAM_BOT_TOKEN` is set, so it can't leak into a real deploy.
+
+### Running tests
+
+```bash
+pip install -r requirements-dev.txt
+pytest
+```
 
 ## Telegram setup
 
@@ -89,9 +147,10 @@ serve the feed with no token (fine for local dev).
 ## Project layout
 
 ```
-api/       FastAPI app, models, routes, services (Telegram + Google Calendar)
-bot/       Telegram webhook update handling (/start, /help) + outbound notifications
-webapp/    Vanilla JS SPA (Telegram WebApp UI)
-migrations/  Alembic
-tests/     pytest
+api/         FastAPI app, models, routes, services (Telegram, Resend, Google Docs/Drive/Forms)
+bot/         Telegram webhook update handling (/start, /help, /status, /remind) + outbound notifications
+webapp/      Vanilla JS SPA (Telegram WebApp UI)
+migrations/  Alembic (22 migrations, schema history)
+docs/        Feature-specific operational docs (e.g. grading setup)
+tests/       pytest — auth, proposals, calendar/disposables, grading
 ```
