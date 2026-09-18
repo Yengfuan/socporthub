@@ -1,4 +1,5 @@
 :root {
+  color-scheme: light;
   --bg: #f8f9fa;
   --surface: #ffffff;
   --text: #1a1d21;
@@ -25,6 +26,60 @@
   --space-4: 16px;
   --space-5: 24px;
 }
+
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  --bg: #10151e;
+  --surface: #1b2432;
+  --text: #edf2f9;
+  --text-muted: #a6b3c6;
+  --border: #354256;
+  --accent: #8ab4ff;
+  --accent-text: #102344;
+  --amber-bg: #3d301c;
+  --amber-text: #f5cc80;
+  --blue-bg: #223856;
+  --blue-text: #a9ceff;
+  --purple-bg: #342946;
+  --purple-text: #d5bcff;
+  --green-bg: #193d33;
+  --green-text: #92dfbb;
+  --red-bg: #45262e;
+  --red-text: #ffabb3;
+}
+
+.theme-toolbar {
+  max-width: 480px;
+  margin: 0 auto;
+  padding: 16px 16px 0;
+  display: flex;
+  justify-content: flex-end;
+}
+
+#theme-toggle {
+  min-height: 40px;
+  padding: 8px 12px;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: var(--surface);
+  color: var(--text);
+  font: inherit;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+#theme-toggle:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; }
+
+[data-theme="dark"] .card:active { background: #263348; }
+[data-theme="dark"] :is(.poster-banner-empty, .comment-form, .grading-evidence) { background: var(--bg); border-color: var(--border); }
+[data-theme="dark"] :is(.poster-banner, .comment-form textarea, .grading-field textarea, .grading-score input, .grading-open) { border-color: var(--border); }
+[data-theme="dark"] :is(.grading-field textarea, .grading-score input, .grading-evidence-icon) { background: var(--surface); color: var(--text); }
+[data-theme="dark"] :is(.grading-open, .grading-scale, .grading-tags span, .grading-options label:has(input:checked)) { background: var(--purple-bg); color: var(--purple-text); }
+[data-theme="dark"] :is(.grading-eyebrow, .grading-result > div > span, .grading-field legend span) { color: var(--purple-text); }
+[data-theme="dark"] .grading-deadline { background: var(--amber-bg); color: var(--amber-text); border-color: #66512e; }
+[data-theme="dark"] .grading-overdue { background: var(--red-bg); color: var(--red-text); border-color: #76414e; }
+[data-theme="dark"] :is(.comment-reply-context, .comment-replying) { background: var(--amber-bg); }
 
 * {
   box-sizing: border-box;
