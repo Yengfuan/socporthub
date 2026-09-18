@@ -301,6 +301,7 @@ export function renderNewProposal(root, navigate, user) {
 export async function renderProposalDetail(root, user, proposalId, navigate) {
   root.innerHTML = `<div class="loading">Loading…</div>`;
   const proposal = await api.get(`/api/proposals/${proposalId}`);
+  await api.post(`/api/proposals/${proposalId}/comments/read`);
 
   const isAdmin = user.role === "admin";
   const isOwner = proposal.submitted_by === user.id;

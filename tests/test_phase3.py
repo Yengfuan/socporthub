@@ -61,6 +61,34 @@ def test_comment_thread_and_status_change_reason(client):
     assert "budget breakdown" in comments[-1]["body"]
 
 
+def test_comment_activity_is_unread_until_proposal_is_opened(client):
+    register(client, ADMIN, "admin@example.com")
+    _approve_user(client, USER_A, "a@example.com")
+    proposal_id = _create_proposal(client, USER_A)
+
+    client.post(
+        f"/api/proposals/{proposal_id}/comments",
+        json={"body": "Please add the venue details"},
+        headers=auth_header(ADMIN),
+    )
+
+    user_proposals = client.get("/api/proposals", headers=auth_header(USER_A)).json()
+    assert user_proposals[0]["unread_comment_count"] == 1
+
+    marked = client.post(f"/api/proposals/{proposal_id}/comments/read", headers=auth_header(USER_A))
+    assert marked.status_code == 204
+    user_proposals = client.get("/api/proposals", headers=auth_header(USER_A)).json()
+    assert user_proposals[0]["unread_comment_count"] == 0
+
+    client.post(
+        f"/api/proposals/{proposal_id}/comments",
+        json={"body": "User follow-up"},
+        headers=auth_header(USER_A),
+    )
+    admin_proposals = client.get("/api/proposals", headers=auth_header(ADMIN)).json()
+    assert admin_proposals[0]["unread_comment_count"] == 1
+
+
 def test_disposable_request_lifecycle(client):
     register(client, ADMIN, "admin@example.com")
     _approve_user(client, USER_A, "a@example.com")

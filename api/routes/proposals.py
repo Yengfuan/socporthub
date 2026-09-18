@@ -1,4 +1,5 @@
 import json
+from datetime import datetime, timezone
 
 from fastapi import APIRouter, Depends, File, HTTPException, UploadFile, status
 from fastapi.responses import Response
@@ -14,6 +15,7 @@ from api.models import (
     Committee,
     Proposal, EmailDraft,
     ProposalComment,
+    ProposalCommentRead,
     ProposalStatusHistory,
     ProposalCategory, ProposalStatus,
     User,
@@ -52,7 +54,7 @@ from api.services.google_drive import provision_evidence
 router = APIRouter(prefix="/api/proposals", tags=["proposals"])
 
 
-def _to_out(p: Proposal) -> ProposalOut:
+def _to_out(p: Proposal, *, latest_comment_at=None, unread_comment_count: int = 0) -> ProposalOut:
     try:
         requested_ccas = json.loads(p.requested_ccas or "[]")
     except json.JSONDecodeError:
@@ -82,6 +84,8 @@ def _to_out(p: Proposal) -> ProposalOut:
         event_time=p.event_time.isoformat(timespec="minutes") if p.event_time else None,
         created_at=p.created_at,
         updated_at=p.updated_at,
+        latest_comment_at=latest_comment_at,
+        unread_comment_count=unread_comment_count,
         requested_ccas=requested_ccas if isinstance(requested_ccas, list) else [],
         external_form_data=external_form_data if isinstance(external_form_data, dict) else {},
     )
@@ -112,7 +116,27 @@ def list_proposals(
     if proposal_status is not None:
         query = query.filter(Proposal.status == proposal_status)
     proposals = query.order_by(Proposal.created_at.desc()).all()
-    return [_to_out(p) for p in proposals]
+    enriched = []
+    for proposal in proposals:
+        comments = proposal.comments
+        latest_comment_at = max((comment.created_at for comment in comments), default=None)
+        read = db.get(ProposalCommentRead, (user.id, proposal.id))
+        read_at = read.read_at if read else None
+        if read_at and read_at.tzinfo is not None:
+            read_at = read_at.replace(tzinfo=None)
+        unread = sum(
+            1
+            for comment in comments
+            if comment.author_id != user.id
+            and (
+                user.role == UserRole.admin
+                or (proposal.submitted_by == user.id and comment.author.role == UserRole.admin)
+            )
+            and (read_at is None or comment.created_at > read_at)
+        )
+        enriched.append((latest_comment_at or proposal.created_at, proposal, unread, latest_comment_at))
+    enriched.sort(key=lambda item: item[0], reverse=True)
+    return [_to_out(p, latest_comment_at=latest, unread_comment_count=unread) for _, p, unread, latest in enriched]
 
 
 @router.get("/summary", response_model=ProposalStatusCounts)
@@ -476,6 +500,23 @@ def list_comments(
 ) -> list[ProposalCommentOut]:
     proposal = get_visible_proposal(db, user, proposal_id)
     return [_comment_to_out(c) for c in proposal.comments]
+
+
+@router.post("/{proposal_id}/comments/read", status_code=status.HTTP_204_NO_CONTENT)
+def mark_comments_read(
+    proposal_id: int,
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
+) -> Response:
+    proposal = get_visible_proposal(db, user, proposal_id)
+    read = db.get(ProposalCommentRead, (user.id, proposal.id))
+    now = datetime.now(timezone.utc)
+    if read:
+        read.read_at = now
+    else:
+        db.add(ProposalCommentRead(user_id=user.id, proposal_id=proposal.id, read_at=now))
+    db.commit()
+    return Response(status_code=status.HTTP_204_NO_CONTENT)
 
 
 @router.get("/{proposal_id}/status-history", response_model=list[ProposalStatusHistoryOut])

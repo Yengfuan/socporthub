@@ -186,6 +186,14 @@ class ProposalComment(Base):
     replies: Mapped[list["ProposalComment"]] = relationship(back_populates="reply_to")
 
 
+class ProposalCommentRead(Base):
+    __tablename__ = "proposal_comment_reads"
+
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id"), primary_key=True)
+    proposal_id: Mapped[int] = mapped_column(ForeignKey("proposals.id"), primary_key=True)
+    read_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+
+
 class ProposalStatusHistory(Base):
     __tablename__ = "proposal_status_history"
 

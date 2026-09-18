@@ -124,6 +124,8 @@ class ProposalOut(BaseModel):
     event_time: str | None
     created_at: datetime
     updated_at: datetime
+    latest_comment_at: datetime | None = None
+    unread_comment_count: int = 0
     requested_ccas: list[str] = []
     external_form_data: dict[str, dict] = {}
     grading_available: bool = False

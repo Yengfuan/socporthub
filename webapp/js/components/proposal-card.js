@@ -16,13 +16,17 @@ export function proposalCard(proposal, { showCommittee = false } = {}) {
 
   return `
     <a class="card proposal-card" data-nav="proposal/${proposal.id}">
-      <div class="title">${escapeHtml(proposal.title)}</div>
+      <div class="proposal-card-heading">
+        <div class="title">${escapeHtml(proposal.title)}</div>
+        ${proposal.unread_comment_count ? `<span class="comment-notification" aria-label="${proposal.unread_comment_count} unread comment${proposal.unread_comment_count === 1 ? "" : "s"}">${proposal.unread_comment_count}</span>` : ""}
+      </div>
       <div class="meta">
         <span>${showCommittee ? escapeHtml(proposal.committee_name) + " · " : ""}${escapeHtml(
     proposal.submitter_name || ""
   )} · ${dateStr}</span>
         ${statusBadge(proposal.status)}
       </div>
+      ${proposal.unread_comment_count ? `<div class="proposal-card-notice">💬 ${proposal.unread_comment_count} new comment${proposal.unread_comment_count === 1 ? "" : "s"}</div>` : ""}
     </a>
   `;
 }
