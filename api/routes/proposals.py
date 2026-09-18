@@ -54,6 +54,15 @@ from api.services.google_drive import provision_evidence
 router = APIRouter(prefix="/api/proposals", tags=["proposals"])
 
 
+def _utc_naive(value):
+    """Normalize DB timestamps before comparing legacy naive and new aware values."""
+    if value is None:
+        return None
+    if value.tzinfo is not None:
+        return value.astimezone(timezone.utc).replace(tzinfo=None)
+    return value
+
+
 def _to_out(p: Proposal, *, latest_comment_at=None, unread_comment_count: int = 0) -> ProposalOut:
     try:
         requested_ccas = json.loads(p.requested_ccas or "[]")
@@ -119,11 +128,9 @@ def list_proposals(
     enriched = []
     for proposal in proposals:
         comments = proposal.comments
-        latest_comment_at = max((comment.created_at for comment in comments), default=None)
+        latest_comment_at = max((_utc_naive(comment.created_at) for comment in comments), default=None)
         read = db.get(ProposalCommentRead, (user.id, proposal.id))
-        read_at = read.read_at if read else None
-        if read_at and read_at.tzinfo is not None:
-            read_at = read_at.replace(tzinfo=None)
+        read_at = _utc_naive(read.read_at) if read else None
         unread = sum(
             1
             for comment in comments
@@ -132,9 +139,9 @@ def list_proposals(
                 user.role == UserRole.admin
                 or (proposal.submitted_by == user.id and comment.author.role == UserRole.admin)
             )
-            and (read_at is None or comment.created_at > read_at)
+            and (read_at is None or _utc_naive(comment.created_at) > read_at)
         )
-        enriched.append((latest_comment_at or proposal.created_at, proposal, unread, latest_comment_at))
+        enriched.append((_utc_naive(latest_comment_at or proposal.created_at), proposal, unread, latest_comment_at))
     enriched.sort(key=lambda item: item[0], reverse=True)
     return [_to_out(p, latest_comment_at=latest, unread_comment_count=unread) for _, p, unread, latest in enriched]
 
