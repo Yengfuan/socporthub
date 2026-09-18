@@ -89,13 +89,10 @@ async def provision_evidence(db: Session, proposal_id: int):
             if not proposal.drive_ready:
                 proposal.drive_ready = True
                 db.commit()
-            # Grant only the submitter upload access. Admin access is inherited
-            # from the configured portfolio parent, never public link sharing.
-            permissions = await client.get(f"{BASE}/files/{proposal.drive_folder_id}/permissions", params={"supportsAllDrives": "true", "fields": "permissions(id,emailAddress,role)"})
-            permissions.raise_for_status()
-            if not any(p.get("emailAddress", "").lower() == proposal.submitter.email.lower() and p["role"] in ("writer", "organizer", "fileOrganizer", "owner") for p in permissions.json().get("permissions", [])):
-                response = await client.post(f"{BASE}/files/{proposal.drive_folder_id}/permissions", params={"supportsAllDrives": "true", "sendNotificationEmail": "false"}, json={"type": "user", "role": "writer", "emailAddress": proposal.submitter.email})
-                response.raise_for_status()
+            # Do not grant access based on the app registration email. Some
+            # registered addresses are not Google accounts, and Drive rejects
+            # those invitations. Users can open the folder link and choose the
+            # Google account that has access to the Shared Drive themselves.
             if proposal.doc_link and proposal.drive_pdf_id:
                 response = await client.get(f"{BASE}/files/{proposal.drive_pdf_id}", params={"supportsAllDrives": "true", "fields": "id"})
                 if response.status_code == 404:
