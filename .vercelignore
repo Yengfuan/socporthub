@@ -1,0 +1,16 @@
+# Not needed by the deployed function. Migrations and scripts run from a workstation/CI.
+.env
+.env.*
+.venv*/
+venv/
+.memsearch/
+.vibe-wise/
+tests/
+docs/
+scripts/
+migrations/
+alembic.ini
+supabase/
+Procfile
+*.db
+*.db.*

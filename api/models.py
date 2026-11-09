@@ -162,6 +162,8 @@ class Proposal(Base):
     poster_filename: Mapped[str | None] = mapped_column(String(255))
     poster_content_type: Mapped[str | None] = mapped_column(String(100))
     poster_data: Mapped[bytes | None] = mapped_column(LargeBinary)
+    # Object path in Supabase Storage. When set, it wins over poster_data.
+    poster_storage_path: Mapped[str | None] = mapped_column(String(512))
     drive_folder_id: Mapped[str | None] = mapped_column(String(255))
     drive_pdf_id: Mapped[str | None] = mapped_column(String(255))
     drive_ready: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
@@ -318,6 +320,8 @@ class BorrowRequest(Base):
     return_proof_file_id: Mapped[str | None] = mapped_column(String(255))
     return_proof_content_type: Mapped[str | None] = mapped_column(String(100))
     return_proof_data: Mapped[bytes | None] = mapped_column(LargeBinary, deferred=True)
+    # Object path in Supabase Storage. When set, it wins over return_proof_data.
+    return_proof_storage_path: Mapped[str | None] = mapped_column(String(512))
     return_submitted_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     returned_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     # Delivery receipt for scheduled reminders: day_before, due, or overdue (daily).
@@ -435,6 +439,15 @@ class ReminderNudge(Base):
     sent_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
 
     recipient: Mapped["ReminderRecipient"] = relationship()
+
+
+class ScheduledJobRun(Base):
+    """Once-a-day receipt for scheduled jobs that have no per-row receipt of their own
+    (the admin collection digest), so a stateless scheduler tick can't send twice."""
+    __tablename__ = "scheduled_job_runs"
+
+    job: Mapped[str] = mapped_column(String(64), primary_key=True)
+    last_run_on: Mapped[date | None] = mapped_column(Date)
 
 
 class EmailDraft(Base):

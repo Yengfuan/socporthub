@@ -387,3 +387,20 @@ class BorrowReturnDecision(BaseModel):
 
 class BorrowDeleteRequest(BaseModel):
     reason: str | None = Field(default=None, max_length=1000)
+
+
+class PosterUploadRequest(BaseModel):
+    filename: str = Field(min_length=1, max_length=255)
+    content_type: str = Field(max_length=100)
+    size: int = Field(ge=1)
+
+
+class PosterUploadTicket(BaseModel):
+    # None means direct uploads are off (STORAGE_MODE=database): post the file instead.
+    upload_url: str | None = None
+    path: str | None = None
+
+
+class PosterConfirmRequest(BaseModel):
+    path: str = Field(min_length=1, max_length=512)
+    filename: str = Field(min_length=1, max_length=255)

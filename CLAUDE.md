@@ -66,7 +66,13 @@ Don't reintroduce a Google Calendar dependency without checking this decision fi
 - Backend: FastAPI (sync SQLAlchemy 2.0, not async — simplest correct choice at ~100 users)
 - DB: PostgreSQL via Alembic migrations (never hand-edit the schema; always add a migration)
 - Bot: raw Telegram Bot API over `httpx` (no bot framework) — webhook-based, delivered as
-  a route inside the same FastAPI app so Railway only runs one process
+  a route inside the same FastAPI app, handled inline before the response (serverless)
+- Hosting: Vercel (one function, `vercel.json` service → `api/main.py`) + Supabase (Postgres, Storage
+  bucket `uploads`, `pg_cron` calling `/api/cron/*`). See README "Deployment".
+  Scheduled jobs are tick functions in `api/services/scheduled_notifications.py`; each must
+  be idempotent with a DB receipt — never rely on in-memory state between ticks.
+  Binary files go through `api/services/storage.py` (signed URLs; never stream large
+  files through a function — Vercel caps bodies at 4.5 MB).
 - Frontend: vanilla JS SPA served as static files by FastAPI, no build step
 
 ## Conventions

@@ -2,7 +2,7 @@ import json
 from datetime import datetime, timezone
 
 from fastapi import APIRouter, Depends, File, HTTPException, UploadFile, status
-from fastapi.responses import Response
+from fastapi.responses import JSONResponse, Response
 from fastapi import Query
 from sqlalchemy import func
 from sqlalchemy.orm import Session
@@ -28,7 +28,11 @@ from api.portfolio import (
     committee_portfolio,
     sends_confirmation_email as should_send_confirmation_email,
 )
+from api.services import storage
 from api.schemas import (
+    PosterConfirmRequest,
+    PosterUploadRequest,
+    PosterUploadTicket,
     ProposalCommentCreate,
     ProposalCommentOut,
     ProposalStatusHistoryOut,
@@ -182,7 +186,7 @@ def _validate_category_requirements(
     event_time,
     doc_link: str | None,
     blast_message: str | None,
-    poster_data: bytes | None,
+    has_poster: bool,
     check_poster: bool,
 ) -> None:
     """Shared field requirements for a proposal about to become in_review.
@@ -193,7 +197,7 @@ def _validate_category_requirements(
     """
     if category in (ProposalCategory.event, ProposalCategory.initiative, ProposalCategory.pantry_cleaning) and not event_date:
         raise HTTPException(status.HTTP_400_BAD_REQUEST, "An event date is required for this category")
-    if check_poster and category in (ProposalCategory.event, ProposalCategory.initiative, ProposalCategory.welfare, ProposalCategory.merch) and not poster_data:
+    if check_poster and category in (ProposalCategory.event, ProposalCategory.initiative, ProposalCategory.welfare, ProposalCategory.merch) and not has_poster:
         raise HTTPException(status.HTTP_400_BAD_REQUEST, "A poster is required for this category")
     if category in (ProposalCategory.event, ProposalCategory.merch) and not doc_link:
         raise HTTPException(status.HTTP_400_BAD_REQUEST, "A link or PDF URL is required for this category")
@@ -216,7 +220,7 @@ async def create_proposal(
             event_time=req.event_time,
             doc_link=req.doc_link,
             blast_message=req.blast_message,
-            poster_data=None,
+            has_poster=False,
             check_poster=False,
         )
     # A user may belong to multiple committees; submit under the first for MVP simplicity.
@@ -349,7 +353,7 @@ async def update_proposal(
             event_time=proposal.event_time,
             doc_link=proposal.doc_link,
             blast_message=proposal.blast_message,
-            poster_data=proposal.poster_data,
+            has_poster=bool(proposal.poster_storage_path or proposal.poster_data),
             check_poster=True,
         )
 
@@ -417,6 +421,46 @@ async def update_proposal(
     return _to_out(proposal)
 
 
+POSTER_CONTENT_TYPES = {"image/jpeg", "image/png", "image/webp", "application/pdf"}
+POSTER_MAX_BYTES = 10 * 1024 * 1024
+
+
+def _check_poster_upload(proposal: Proposal, user: User, content_type: str | None, size: int | None) -> None:
+    if proposal.submitted_by != user.id or proposal.status not in (ProposalStatus.draft, ProposalStatus.needs_action):
+        raise HTTPException(status.HTTP_403_FORBIDDEN, "Only the owner can upload a poster while editing")
+    if proposal.category not in (ProposalCategory.event, ProposalCategory.initiative, ProposalCategory.welfare, ProposalCategory.merch):
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, "Posters are only used for Event, Initiative, Welfare, and Merch proposals")
+    if content_type not in POSTER_CONTENT_TYPES:
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, "Poster must be a PDF, PNG, JPG, or WEBP file")
+    if size is not None and size > POSTER_MAX_BYTES:
+        raise HTTPException(status.HTTP_413_REQUEST_ENTITY_TOO_LARGE, "Poster must be 10 MB or smaller")
+
+
+def _poster_prefix(proposal_id: int) -> str:
+    return f"posters/{proposal_id}"
+
+
+def _store_poster(
+    db: Session, proposal: Proposal, filename: str, content_type: str, *, data: bytes | None = None, path: str | None = None
+) -> None:
+    """Point the proposal at its new poster, then drop the object it replaced."""
+    old_path = proposal.poster_storage_path
+    proposal.poster_filename = filename
+    proposal.poster_content_type = content_type
+    proposal.poster_data = data
+    proposal.poster_storage_path = path
+    db.commit()
+    db.refresh(proposal)
+    if old_path and old_path != path:
+        storage.delete(old_path)
+
+
+def poster_bytes(proposal: Proposal) -> bytes | None:
+    if proposal.poster_storage_path:
+        return storage.download(proposal.poster_storage_path)
+    return proposal.poster_data
+
+
 @router.post("/{proposal_id}/poster", response_model=ProposalOut)
 async def upload_poster(
     proposal_id: int,
@@ -424,21 +468,70 @@ async def upload_poster(
     db: Session = Depends(get_db),
     user: User = Depends(get_current_user),
 ) -> ProposalOut:
+    """Upload through the API. Fine for small files; on Vercel (4.5 MB request cap) the
+    WebApp uses /poster/upload-url + /poster/confirm instead when Storage is enabled."""
     proposal = get_visible_proposal(db, user, proposal_id)
-    if proposal.submitted_by != user.id or proposal.status not in (ProposalStatus.draft, ProposalStatus.needs_action):
-        raise HTTPException(status.HTTP_403_FORBIDDEN, "Only the owner can upload a poster while editing")
-    if proposal.category not in (ProposalCategory.event, ProposalCategory.initiative, ProposalCategory.welfare, ProposalCategory.merch):
-        raise HTTPException(status.HTTP_400_BAD_REQUEST, "Posters are only used for Event, Initiative, Welfare, and Merch proposals")
-    if poster.content_type not in {"image/jpeg", "image/png", "image/webp", "application/pdf"}:
-        raise HTTPException(status.HTTP_400_BAD_REQUEST, "Poster must be a PDF, PNG, JPG, or WEBP file")
+    _check_poster_upload(proposal, user, poster.content_type, None)
     data = await poster.read()
-    if len(data) > 10 * 1024 * 1024:
-        raise HTTPException(status.HTTP_413_REQUEST_ENTITY_TOO_LARGE, "Poster must be 10 MB or smaller")
-    proposal.poster_filename = poster.filename or "poster"
-    proposal.poster_content_type = poster.content_type
-    proposal.poster_data = data
-    db.commit()
-    db.refresh(proposal)
+    _check_poster_upload(proposal, user, poster.content_type, len(data))
+    filename = poster.filename or "poster"
+    if get_settings().uses_supabase_storage:
+        path = storage.new_path(_poster_prefix(proposal.id), filename)
+        try:
+            storage.upload(path, data, poster.content_type)
+        except storage.StorageError:
+            raise HTTPException(status.HTTP_502_BAD_GATEWAY, "Could not store the poster, please try again")
+        _store_poster(db, proposal, filename, poster.content_type, path=path)
+    else:
+        _store_poster(db, proposal, filename, poster.content_type, data=data)
+    return _to_out(proposal)
+
+
+@router.post("/{proposal_id}/poster/upload-url", response_model=PosterUploadTicket)
+def poster_upload_url(
+    proposal_id: int,
+    req: PosterUploadRequest,
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
+) -> PosterUploadTicket:
+    """Step 1 of a direct upload: a one-time URL the browser PUTs the file to."""
+    proposal = get_visible_proposal(db, user, proposal_id)
+    _check_poster_upload(proposal, user, req.content_type, req.size)
+    if not get_settings().uses_supabase_storage:
+        return PosterUploadTicket()
+    path = storage.new_path(_poster_prefix(proposal.id), req.filename)
+    try:
+        return PosterUploadTicket(upload_url=storage.signed_upload_url(path), path=path)
+    except storage.StorageError:
+        raise HTTPException(status.HTTP_502_BAD_GATEWAY, "Could not prepare the upload, please try again")
+
+
+@router.post("/{proposal_id}/poster/confirm", response_model=ProposalOut)
+def confirm_poster_upload(
+    proposal_id: int,
+    req: PosterConfirmRequest,
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
+) -> ProposalOut:
+    """Step 2 of a direct upload: check what actually landed in Storage, then attach it."""
+    if not get_settings().uses_supabase_storage:
+        raise HTTPException(status.HTTP_409_CONFLICT, "Direct uploads are not enabled")
+    proposal = get_visible_proposal(db, user, proposal_id)
+    prefix = _poster_prefix(proposal.id) + "/"
+    if not req.path.startswith(prefix) or "/" in req.path[len(prefix):] or ".." in req.path:
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, "That upload does not belong to this proposal")
+    try:
+        uploaded = storage.info(req.path)
+    except storage.StorageError:
+        raise HTTPException(status.HTTP_502_BAD_GATEWAY, "Could not check the upload, please try again")
+    if not uploaded:
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, "The poster upload did not finish, please try again")
+    try:
+        _check_poster_upload(proposal, user, uploaded["content_type"], uploaded["size"])
+    except HTTPException:
+        storage.delete(req.path)
+        raise
+    _store_poster(db, proposal, req.filename, uploaded["content_type"], path=req.path)
     return _to_out(proposal)
 
 
@@ -463,6 +556,17 @@ async def download_document(
 @router.get("/{proposal_id}/poster")
 def download_poster(proposal_id: int, db: Session = Depends(get_db), user: User = Depends(get_current_user)) -> Response:
     proposal = get_visible_proposal(db, user, proposal_id)
+    if proposal.poster_storage_path and proposal.poster_content_type:
+        # Hand out a short-lived link instead of streaming: Vercel caps responses at 4.5 MB.
+        try:
+            signed_url = storage.signed_download_url(proposal.poster_storage_path)
+        except storage.StorageError:
+            raise HTTPException(status.HTTP_502_BAD_GATEWAY, "Could not load the poster, please try again")
+        return JSONResponse({
+            "signed_url": signed_url,
+            "filename": proposal.poster_filename or "poster",
+            "content_type": proposal.poster_content_type,
+        })
     if not proposal.poster_data or not proposal.poster_content_type:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "Poster not found")
     return Response(
@@ -489,7 +593,11 @@ async def announce_proposal(
         raise HTTPException(status.HTTP_503_SERVICE_UNAVAILABLE, "Announcement channel is not configured")
 
     try:
-        await send_proposal_announcement(chat_id, proposal.poster_data, proposal.poster_filename, proposal.blast_message)
+        poster = poster_bytes(proposal)
+    except storage.StorageError:
+        raise HTTPException(status.HTTP_502_BAD_GATEWAY, "Could not load the poster, please try again")
+    try:
+        await send_proposal_announcement(chat_id, poster, proposal.poster_filename, proposal.blast_message)
     except ValueError as exc:
         raise HTTPException(status.HTTP_400_BAD_REQUEST, str(exc))
     except Exception:

@@ -52,7 +52,7 @@ def test_migration_chain_has_a_single_head():
     root = Path(__file__).resolve().parent.parent
     config = Config(str(root / "alembic.ini"))
     config.set_main_option("script_location", str(root / "migrations"))
-    assert ScriptDirectory.from_config(config).get_heads() == ["0030"]
+    assert ScriptDirectory.from_config(config).get_heads() == ["0031"]
 
 
 def test_rls_migration_sql_has_no_percent_signs_and_targets_the_public_schema():
@@ -98,3 +98,30 @@ def test_cca_text_migration_backfills_committee_names_and_allows_null_committee(
         for table in module.TABLES:
             assert connection.execute(text(f"SELECT requester_cca FROM {table}")).scalar() == "Block 3"
             connection.execute(text(f"INSERT INTO {table} (id, committee_id, requester_cca) VALUES (2, NULL, 'personal')"))
+
+
+def test_storage_paths_migration_adds_and_removes_its_columns_and_table():
+    from sqlalchemy import inspect, text
+
+    path = Path(__file__).resolve().parent.parent / "migrations" / "versions" / "0031_storage_paths_and_job_runs.py"
+    spec = importlib.util.spec_from_file_location("migration_0031", path)
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    assert (module.revision, module.down_revision) == ("0031", "0030")
+
+    engine = create_engine("sqlite:///:memory:")
+    with engine.begin() as connection:
+        connection.execute(text("CREATE TABLE proposals (id INTEGER PRIMARY KEY, poster_data BLOB)"))
+        connection.execute(text("CREATE TABLE borrow_requests (id INTEGER PRIMARY KEY, return_proof_data BLOB)"))
+        connection.execute(text("INSERT INTO proposals VALUES (1, x'01')"))
+        context = MigrationContext.configure(connection)
+        with Operations.context(context):
+            module.upgrade()
+        assert "poster_storage_path" in {c["name"] for c in inspect(connection).get_columns("proposals")}
+        assert "return_proof_storage_path" in {c["name"] for c in inspect(connection).get_columns("borrow_requests")}
+        assert inspect(connection).has_table("scheduled_job_runs")
+        with Operations.context(context):
+            module.downgrade()
+        assert "poster_storage_path" not in {c["name"] for c in inspect(connection).get_columns("proposals")}
+        assert not inspect(connection).has_table("scheduled_job_runs")
+        assert connection.execute(text("SELECT count(*) FROM proposals")).scalar() == 1

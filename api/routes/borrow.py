@@ -1,6 +1,7 @@
 """Admin view of the borrowable tables and cambro: where everything is, plus decisions."""
 
 from fastapi import APIRouter, Depends, HTTPException, Response, status
+from fastapi.responses import JSONResponse
 from sqlalchemy.orm import Session, undefer
 
 from api.auth import get_current_admin
@@ -13,7 +14,7 @@ from api.schemas import (
     BorrowReturnDecision,
     BorrowSummaryOut,
 )
-from api.services import borrowing
+from api.services import borrowing, storage
 from bot.borrowing import announce_deletion
 from bot.notifications import (
     notify_user_borrow_approved,
@@ -125,6 +126,15 @@ def get_proof(request_id: int, db: Session = Depends(get_db), _: User = Depends(
         .filter(BorrowRequest.id == request_id)
         .first()
     )
+    if request and request.return_proof_storage_path:
+        try:
+            return JSONResponse({
+                "signed_url": storage.signed_download_url(request.return_proof_storage_path),
+                "filename": f"return-proof-{request.id}",
+                "content_type": request.return_proof_content_type or "image/jpeg",
+            })
+        except storage.StorageError:
+            raise HTTPException(status.HTTP_502_BAD_GATEWAY, "Could not load the return photo, please try again")
     if not request or not request.return_proof_data:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "No return photo stored for this request")
     content_type = request.return_proof_content_type or "image/jpeg"
