@@ -8,14 +8,14 @@ function escapeHtml(value) {
 
 export async function renderDisposableSection(container, user, proposal) {
   const isAdmin = user.role === "admin";
-  const isOwner = proposal.submitted_by === user.id;
-  if (!isAdmin && !isOwner) {
+  const isMember = (user.committees || []).some((c) => c.id === proposal.committee_id);
+  if (!isAdmin && !isMember) {
     container.innerHTML = "";
     return;
   }
 
   const existing = (await api.get(`/api/disposables?proposal_id=${proposal.id}`))[0] || null;
-  const canEdit = isOwner && !(existing && existing.status === "approved");
+  const canEdit = isMember && !(existing && existing.status === "approved");
 
   container.innerHTML = `
     <div class="card">

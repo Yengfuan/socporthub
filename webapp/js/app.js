@@ -1,7 +1,7 @@
 import { api } from "./api.js";
 import { renderRegister, renderPendingOrRejected } from "./pages/register.js";
 import { renderHome } from "./pages/home.js";
-import { renderNewProposal, renderProposalDetail } from "./pages/proposal-detail.js?v=grading-4";
+import { renderNewProposal, renderProposalDetail } from "./pages/proposal-detail.js?v=grading-5";
 import { renderAdminDashboard } from "./pages/admin-dashboard.js";
 import { renderCalendar } from "./pages/calendar.js";
 import { renderReminders } from "./pages/reminders.js";

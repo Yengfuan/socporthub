@@ -1,6 +1,7 @@
 from datetime import datetime, timezone
 
 from fastapi import APIRouter, Depends, HTTPException, status
+from sqlalchemy import or_
 from sqlalchemy.orm import Session
 
 from api.auth import get_current_user
@@ -13,7 +14,7 @@ from api.models import (
     User,
     UserRole,
 )
-from api.portfolio import admin_can_access_committee, admin_committee_filter
+from api.portfolio import admin_can_access_committee, admin_committee_filter, can_manage_proposal
 from api.schemas import DeletionRequestCreate, DeletionRequestDecision, DeletionRequestOut
 from api.services.proposal_deletion import delete_proposal
 
@@ -47,7 +48,8 @@ def list_requests(
     user: User = Depends(get_current_user),
 ) -> list[DeletionRequestOut]:
     """Admins: pending requests inside their portfolio (the dashboard notice).
-    Everyone else: only their own requests, whatever their status."""
+    Everyone else: requests they made or that were made for their committees,
+    whatever the status."""
     query = db.query(ProposalDeletionRequest)
     if proposal_id is not None:
         query = query.filter(ProposalDeletionRequest.proposal_id == proposal_id)
@@ -58,7 +60,12 @@ def list_requests(
             .filter(admin_committee_filter(user))
         )
     else:
-        query = query.filter(ProposalDeletionRequest.requested_by == user.id)
+        query = query.filter(
+            or_(
+                ProposalDeletionRequest.requested_by == user.id,
+                ProposalDeletionRequest.committee_id.in_(user.committee_ids or {-1}),
+            )
+        )
     return [_to_out(r) for r in query.order_by(ProposalDeletionRequest.created_at.desc()).all()]
 
 
@@ -73,9 +80,9 @@ def create_request(
     reason = req.reason.strip()
     if not reason:
         raise HTTPException(status.HTTP_400_BAD_REQUEST, "A reason is required")
-    # Only the person who submitted the proposal can ask for it to be deleted.
+    # Any member of the proposal's committee can ask for it to be deleted.
     proposal = db.get(Proposal, req.proposal_id)
-    if not proposal or proposal.submitted_by != user.id:
+    if not proposal or not can_manage_proposal(user, proposal):
         raise HTTPException(status.HTTP_404_NOT_FOUND, "Proposal not found")
     already_pending = (
         db.query(ProposalDeletionRequest)

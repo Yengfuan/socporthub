@@ -30,7 +30,7 @@ export async function renderDeletionSection(slot, user, proposal, navigate) {
     return;
   }
 
-  if (proposal.submitted_by !== user.id) return;
+  if (!(user.committees || []).some((c) => c.id === proposal.committee_id)) return;
 
   const requests = await api.get(`/api/proposal-deletions?proposal_id=${proposal.id}`).catch(() => []);
   const pending = requests.find((r) => r.status === "pending");
@@ -116,7 +116,7 @@ export async function renderMyDeletionRequests(container) {
   const requests = await api.get("/api/proposal-deletions").catch(() => []);
   if (!requests.length) return;
   container.innerHTML = `
-    <div class="card"><h3>Your deletion requests</h3>
+    <div class="card"><h3>Deletion requests</h3>
       ${requests
         .slice(0, 5)
         .map(

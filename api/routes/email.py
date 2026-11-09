@@ -6,7 +6,7 @@ from sqlalchemy.orm import Session
 from api.auth import get_current_admin, get_current_user
 from api.database import get_db
 from api.models import DisposableStatus, EmailDraft, Portfolio, Proposal, ProposalStatus, User, UserRole
-from api.portfolio import committee_portfolio, sends_confirmation_email
+from api.portfolio import can_manage_proposal, committee_portfolio, sends_confirmation_email
 from api.schemas import EmailDraftOut, EmailDraftUpdate
 from api.services.resend_email import send_email
 from api.config import get_settings
@@ -41,7 +41,7 @@ def _proposal(db: Session, proposal_id: int, user: User) -> Proposal:
     proposal = db.get(Proposal, proposal_id)
     if not proposal:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "Proposal not found")
-    if user.role != UserRole.admin and (proposal.committee_id not in user.committee_ids or proposal.submitted_by != user.id):
+    if user.role != UserRole.admin and not can_manage_proposal(user, proposal):
         raise HTTPException(status.HTTP_404_NOT_FOUND, "Proposal not found")
     if proposal.status != ProposalStatus.in_review:
         raise HTTPException(status.HTTP_400_BAD_REQUEST, "Email can only be prepared for an in-review proposal")

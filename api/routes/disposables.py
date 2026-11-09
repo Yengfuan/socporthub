@@ -8,7 +8,7 @@ from api.auth import get_current_user
 from api.config import get_settings
 from api.database import get_db
 from api.models import DisposableRequest, DisposableStatus, User, UserRole
-from api.portfolio import admin_can_access_committee, committee_portfolio
+from api.portfolio import admin_can_access_committee, can_manage_proposal, committee_portfolio
 from api.schemas import (
     DisposableDecisionRequest,
     DisposableRequestOut,
@@ -100,8 +100,8 @@ async def upsert_disposable(
     if req.collection_date < _app_today():
         raise HTTPException(status.HTTP_400_BAD_REQUEST, "Collection date cannot be in the past")
     proposal = get_visible_proposal(db, user, proposal_id)
-    if proposal.submitted_by != user.id and user.role != UserRole.admin:
-        raise HTTPException(status.HTTP_403_FORBIDDEN, "Only the proposal owner can request disposables")
+    if not can_manage_proposal(user, proposal) and user.role != UserRole.admin:
+        raise HTTPException(status.HTTP_403_FORBIDDEN, "Only the proposal's committee can request disposables")
 
     existing = db.query(DisposableRequest).filter(DisposableRequest.proposal_id == proposal_id).first()
     if existing and existing.status == DisposableStatus.approved and user.role != UserRole.admin:
