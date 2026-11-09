@@ -5,7 +5,7 @@ from fastapi import FastAPI, Request
 from fastapi.staticfiles import StaticFiles
 
 from api.routes import auth, borrow, bug_reports, calendar, committees, disposables, email, proposals, reminders, telegram_webhook, users
-from api.routes import grading, ai_review, cron
+from api.routes import grading, ai_review, cron, proposal_deletions
 
 logging.basicConfig(level=logging.INFO)
 
@@ -66,6 +66,7 @@ app.include_router(bug_reports.router)
 app.include_router(users.router)
 app.include_router(committees.router)
 app.include_router(proposals.router)
+app.include_router(proposal_deletions.router)
 app.include_router(grading.router)
 app.include_router(ai_review.router)
 app.include_router(calendar.router)

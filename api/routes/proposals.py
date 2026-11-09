@@ -5,7 +5,7 @@ from fastapi import APIRouter, Depends, File, HTTPException, UploadFile, status
 from fastapi.responses import JSONResponse, Response
 from fastapi import Query
 from sqlalchemy import func
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, object_session
 
 from api.auth import get_current_user
 from api.config import get_settings
@@ -24,6 +24,7 @@ from api.models import (
 )
 from api.portfolio import (
     admin_committee_filter,
+    can_manage_proposal,
     category_allowed_for_committee,
     committee_portfolio,
     sends_confirmation_email as should_send_confirmation_email,
@@ -53,6 +54,8 @@ from api.services.google_docs import download_google_doc_pdf, proposal_pdf_filen
 from api.services.document_links import verify_document_token
 from api.services.email_attachments import proposal_pdf_attachment
 from api.services.resend_email import send_email
+from api.services.blockouts import blockout_clash
+from api.services.proposal_deletion import delete_proposal
 from api.services.grading import RUBRICS
 from api.services.google_drive import provision_evidence
 
@@ -79,6 +82,7 @@ def _to_out(p: Proposal, *, latest_comment_at=None, unread_comment_count: int = 
         external_form_data = {}
     return ProposalOut(
         grading_available=get_settings().grading_enabled and p.category.value in RUBRICS,
+        blockout_clash=blockout_clash(object_session(p), p),
         id=p.id,
         committee_id=p.committee_id,
         committee_name=p.committee.name,
@@ -151,7 +155,7 @@ def list_proposals(
             if comment.author_id != user.id
             and (
                 user.role == UserRole.admin
-                or (proposal.submitted_by == user.id and comment.author.role == UserRole.admin)
+                or (can_manage_proposal(user, proposal) and comment.author.role == UserRole.admin)
             )
             and (read_at is None or _utc_naive(comment.created_at) > read_at)
         )
@@ -274,6 +278,21 @@ def get_proposal(
     return _to_out(get_visible_proposal(db, user, proposal_id))
 
 
+@router.delete("/{proposal_id}", status_code=status.HTTP_204_NO_CONTENT)
+def delete_proposal_route(
+    proposal_id: int,
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
+) -> None:
+    """Admin hard-delete. Users can't call this; they file a deletion request that an
+    admin approves (api/routes/proposal_deletions.py)."""
+    if user.role != UserRole.admin:
+        raise HTTPException(status.HTTP_403_FORBIDDEN, "Only admins can delete a proposal directly")
+    proposal = get_visible_proposal(db, user, proposal_id)
+    delete_proposal(db, proposal, decided_by=user)
+    db.commit()
+
+
 @router.patch("/{proposal_id}", response_model=ProposalOut)
 async def update_proposal(
     proposal_id: int,
@@ -283,13 +302,14 @@ async def update_proposal(
 ) -> ProposalOut:
     proposal = get_visible_proposal(db, user, proposal_id)
     is_admin = user.role == UserRole.admin
-    is_owner = proposal.submitted_by == user.id
+    is_member = can_manage_proposal(user, proposal)
 
     if req.status is not None:
-        # Owner can submit a draft, and can resubmit after being sent back to
-        # needs_action — both land on in_review. Every other transition is admin-only.
+        # Any member of the committee can submit a draft, and resubmit after it was
+        # sent back to needs_action — both land on in_review. Every other transition
+        # is admin-only.
         owner_can_submit = (
-            is_owner
+            is_member
             and proposal.status in (ProposalStatus.draft, ProposalStatus.needs_action)
             and req.status == ProposalStatus.in_review
         )
@@ -332,10 +352,10 @@ async def update_proposal(
     if "category" in provided_content_fields and proposal.status in (ProposalStatus.grading, ProposalStatus.final):
         raise HTTPException(409, "The category cannot change once grading has started")
     if provided_content_fields:
-        if not is_admin and not (is_owner and proposal.status in (ProposalStatus.draft, ProposalStatus.needs_action)):
+        if not is_admin and not (is_member and proposal.status in (ProposalStatus.draft, ProposalStatus.needs_action)):
             raise HTTPException(
                 status.HTTP_403_FORBIDDEN,
-                "Proposal can only be edited by its owner while in needs_action",
+                "Proposal can only be edited by its committee while in draft or needs_action",
             )
         if "title" in provided_content_fields and req.title is None:
             raise HTTPException(status.HTTP_400_BAD_REQUEST, "title cannot be cleared")
@@ -367,6 +387,7 @@ async def update_proposal(
             CalendarEvent(
                 committee_id=proposal.committee_id,
                 created_by=user.id,
+                proposal_id=proposal.id,
                 title=proposal.title,
                 description=proposal.description,
                 event_date=proposal.event_date,
@@ -426,8 +447,8 @@ POSTER_MAX_BYTES = 10 * 1024 * 1024
 
 
 def _check_poster_upload(proposal: Proposal, user: User, content_type: str | None, size: int | None) -> None:
-    if proposal.submitted_by != user.id or proposal.status not in (ProposalStatus.draft, ProposalStatus.needs_action):
-        raise HTTPException(status.HTTP_403_FORBIDDEN, "Only the owner can upload a poster while editing")
+    if not can_manage_proposal(user, proposal) or proposal.status not in (ProposalStatus.draft, ProposalStatus.needs_action):
+        raise HTTPException(status.HTTP_403_FORBIDDEN, "Only the committee can upload a poster while editing")
     if proposal.category not in (ProposalCategory.event, ProposalCategory.initiative, ProposalCategory.welfare, ProposalCategory.merch):
         raise HTTPException(status.HTTP_400_BAD_REQUEST, "Posters are only used for Event, Initiative, Welfare, and Merch proposals")
     if content_type not in POSTER_CONTENT_TYPES:

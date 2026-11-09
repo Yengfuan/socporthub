@@ -1,4 +1,5 @@
 import { api } from "../api.js";
+import { renderMyDeletionRequests } from "../components/proposal-deletion.js";
 import { proposalCard } from "../components/proposal-card.js";
 import { ICONS, STATUS_ICON } from "../components/icons.js";
 
@@ -55,6 +56,7 @@ export async function renderHome(root, user) {
     </div>
 
     ${proposals.some((p) => p.status === "grading" && p.submitted_by === user.id) ? `<div class="grading-deadline"><strong>Self-assessments need your attention</strong><span>Open a proposal marked Grading to see its deadline, save scores, and submit.</span></div>` : ""}
+    <div id="my-deletions"></div>
     <div class="section-head"><h2>Recent proposals</h2><span class="section-sub">${escapeHtml((user.committees || []).map((c) => c.name).join(", "))}</span></div>
     <div id="proposal-list">
       ${
@@ -68,4 +70,5 @@ export async function renderHome(root, user) {
       <a class="btn" data-nav="proposal/new">+ New Proposal</a>
     </div>
   `;
+  if (user.role !== "admin") renderMyDeletionRequests(root.querySelector("#my-deletions"));
 }

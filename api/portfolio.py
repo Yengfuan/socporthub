@@ -48,6 +48,13 @@ def category_allowed_for_committee(committee: Committee, category: ProposalCateg
     return category in portfolio_categories(committee_portfolio(committee))
 
 
+def can_manage_proposal(user: User, proposal) -> bool:
+    """Whether a non-admin may edit, resubmit and otherwise act on a proposal as its
+    owner: any approved member of the proposal's committee, not just whoever submitted
+    it. The admin's approval of each user into a committee is the trust check."""
+    return proposal.committee_id in user.committee_ids
+
+
 def admin_can_access_committee(user: User, committee: Committee | None) -> bool:
     if committee is None:  # a request filed under a free-text CCA has no committee to scope by
         return True

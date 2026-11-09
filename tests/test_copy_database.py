@@ -128,7 +128,7 @@ def test_unreachable_database_gives_a_readable_message_with_a_railway_hint():
 
 
 def test_copies_from_a_source_one_migration_behind(pair):
-    """Railway (0030) -> Supabase (0031): columns and tables the source lacks are skipped."""
+    """Railway (older) -> Supabase (newer): columns and tables the source lacks are skipped."""
     source, dest = pair
     with source.begin() as connection:
         connection.execute(text("ALTER TABLE proposals DROP COLUMN poster_storage_path"))

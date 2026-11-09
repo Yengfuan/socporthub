@@ -31,9 +31,9 @@ from api import models  # noqa: E402,F401  registers every table on Base.metadat
 from api.database import Base  # noqa: E402
 
 # Revisions whose tables this script understands. The destination may be newer than the
-# source (e.g. Railway at 0030 -> Supabase at 0031): only columns the source has are read,
-# and columns added later keep their defaults (0031 only adds nullable columns and a table).
-SUPPORTED_REVISIONS = {"0028", "0029", "0030", "0031"}
+# source (e.g. Railway at 0032 -> Supabase at 0033): only columns the source has are read,
+# and columns added later keep their defaults (0033 only adds nullable columns and a table).
+SUPPORTED_REVISIONS = {"0028", "0029", "0030", "0031", "0032", "0033"}
 BATCH_ROWS = 500
 BATCH_ROWS_WITH_BINARY = 25  # posters and return photos are large
 

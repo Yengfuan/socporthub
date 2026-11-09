@@ -52,7 +52,7 @@ def test_migration_chain_has_a_single_head():
     root = Path(__file__).resolve().parent.parent
     config = Config(str(root / "alembic.ini"))
     config.set_main_option("script_location", str(root / "migrations"))
-    assert ScriptDirectory.from_config(config).get_heads() == ["0031"]
+    assert ScriptDirectory.from_config(config).get_heads() == ["0033"]
 
 
 def test_rls_migration_sql_has_no_percent_signs_and_targets_the_public_schema():
@@ -103,11 +103,11 @@ def test_cca_text_migration_backfills_committee_names_and_allows_null_committee(
 def test_storage_paths_migration_adds_and_removes_its_columns_and_table():
     from sqlalchemy import inspect, text
 
-    path = Path(__file__).resolve().parent.parent / "migrations" / "versions" / "0031_storage_paths_and_job_runs.py"
-    spec = importlib.util.spec_from_file_location("migration_0031", path)
+    path = Path(__file__).resolve().parent.parent / "migrations" / "versions" / "0033_storage_paths_and_job_runs.py"
+    spec = importlib.util.spec_from_file_location("migration_0033", path)
     module = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(module)
-    assert (module.revision, module.down_revision) == ("0031", "0030")
+    assert (module.revision, module.down_revision) == ("0033", "0032")
 
     engine = create_engine("sqlite:///:memory:")
     with engine.begin() as connection:

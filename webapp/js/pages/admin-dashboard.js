@@ -1,6 +1,7 @@
 import { ICONS, STATUS_ICON } from "../components/icons.js";
 import { api } from "../api.js";
 import { statusBadge } from "../components/status-badge.js";
+import { renderDeletionRequests } from "../components/proposal-deletion.js";
 import { proposalCard } from "../components/proposal-card.js";
 
 // No "draft" here — drafts are private to their owner until submitted, so admins
@@ -147,6 +148,7 @@ async function renderProposalsSection(content, committeeId = null, statusFilter 
   const proposals = allProposals.filter((p) => p.status !== "draft" && (!statusFilter || p.status === statusFilter));
 
   content.innerHTML = `
+    <div id="deletion-requests"></div>
     <div class="chip-row">
       <div class="chip ${!committeeId ? "active" : ""}" data-committee="">All</div>
       ${committees
@@ -175,6 +177,9 @@ async function renderProposalsSection(content, committeeId = null, statusFilter 
     }
   `;
 
+  renderDeletionRequests(content.querySelector("#deletion-requests"), () =>
+    renderProposalsSection(content, committeeId, statusFilter)
+  );
   content.querySelectorAll("[data-committee]").forEach((chip) => {
     chip.addEventListener("click", () => {
       const id = chip.dataset.committee || null;

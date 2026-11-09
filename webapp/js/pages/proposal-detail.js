@@ -1,5 +1,6 @@
 import { api } from "../api.js";
 import { renderGrading } from "../components/grading.js?v=grading-3";
+import { renderDeletionSection } from "../components/proposal-deletion.js";
 import { statusBadge } from "../components/status-badge.js";
 import { renderDisposableSection } from "../components/disposable-form.js";
 import { collectExternalFormData, loadCommitteeFormFields, renderCommitteeFormsSection } from "../components/committee-forms.js";
@@ -323,8 +324,10 @@ export async function renderProposalDetail(root, user, proposalId, navigate) {
   await api.post(`/api/proposals/${proposalId}/comments/read`);
 
   const isAdmin = user.role === "admin";
-  const isOwner = proposal.submitted_by === user.id;
-  const canEdit = isOwner && ["draft", "needs_action"].includes(proposal.status);
+  // Any approved member of the proposal's committee can edit and resubmit it, not
+  // just whoever submitted it (the server enforces the same rule).
+  const isMember = (user.committees || []).some((c) => c.id === proposal.committee_id);
+  const canEdit = isMember && ["draft", "needs_action"].includes(proposal.status);
   const usesEmailWorkflow = proposal.category === "event" ||
     (proposal.category === "initiative" && proposal.portfolio === "welfare");
   const nextStatus = proposal.status === "in_review" && !usesEmailWorkflow
@@ -336,7 +339,7 @@ export async function renderProposalDetail(root, user, proposalId, navigate) {
   const canSubmitWithoutEmail = isAdmin && proposal.status === "in_review" && usesEmailWorkflow;
   // Owner submits a fresh draft, and resubmits after being sent back to needs_action —
   // both land on in_review. Every other status change is admin-only.
-  const canOwnerSubmit = isOwner && ["draft", "needs_action"].includes(proposal.status);
+  const canOwnerSubmit = isMember && ["draft", "needs_action"].includes(proposal.status);
   const adminHasAction = isAdmin && ["in_review", "submitted"].includes(proposal.status);
 
   root.innerHTML = `
@@ -350,6 +353,7 @@ export async function renderProposalDetail(root, user, proposalId, navigate) {
 
     <h1>${escapeHtml(proposal.title)}</h1>
     <p>${escapeHtml(proposal.committee_name)} · Submitted by ${escapeHtml(proposal.submitter_name || "")}</p>
+    ${proposal.blockout_clash ? `<div class="blockout-warning">&#9888; ${escapeHtml(proposal.blockout_clash)}. Check the date before approving.</div>` : ""}
     ${isAdmin ? `<div id="ai-review-slot"></div>` : ""}
     <div id="grading-slot"></div>
 
@@ -405,6 +409,7 @@ export async function renderProposalDetail(root, user, proposalId, navigate) {
         : ""
     }
 
+    <div id="deletion-slot"></div>
     <div id="detail-error"></div>
     <div id="comments-slot" class="comments-slot"></div>
   `;
@@ -412,6 +417,7 @@ export async function renderProposalDetail(root, user, proposalId, navigate) {
   renderCommitteeFormsSection(root.querySelector("#committee-forms-slot"), proposal);
   renderDisposableSection(root.querySelector("#disposable-slot"), user, proposal);
   renderCommentsSection(root.querySelector("#comments-slot"), user, proposal);
+  renderDeletionSection(root.querySelector("#deletion-slot"), user, proposal, navigate);
   if (isAdmin) renderAiReview(root.querySelector("#ai-review-slot"), proposal);
   await renderGrading(root.querySelector("#grading-slot"), user, proposal,
     () => renderProposalDetail(root, user, proposalId, navigate));
