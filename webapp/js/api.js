@@ -59,10 +59,43 @@ async function requestBlob(path) {
     throw new ApiError(res.status, detail);
   }
 
+  // Files kept in object storage come back as a short-lived signed link instead of
+  // bytes (serverless responses are size-capped). The link needs no auth header.
+  if (res.headers.get("Content-Type")?.includes("application/json")) {
+    const { signed_url: signedUrl, filename } = await res.json();
+    const file = await fetch(signedUrl);
+    if (!file.ok) throw new ApiError(file.status, "Could not download the file");
+    return { blob: await file.blob(), filename: filename || "poster" };
+  }
+
   return {
     blob: await res.blob(),
     filename: getFilename(res.headers.get("Content-Disposition")),
   };
+}
+
+// Upload a proposal poster. With object storage enabled the file goes straight from the
+// browser to storage through a one-time URL (no 4.5 MB serverless body limit); otherwise
+// it is posted to the API as before.
+async function uploadPoster(proposalId, file) {
+  const base = `/api/proposals/${proposalId}/poster`;
+  const ticket = await request("POST", `${base}/upload-url`, {
+    filename: file.name || "poster",
+    content_type: file.type,
+    size: file.size,
+  });
+  if (!ticket.upload_url) {
+    const formData = new FormData();
+    formData.append("poster", file);
+    return request("POST", base, formData);
+  }
+  const put = await fetch(ticket.upload_url, {
+    method: "PUT",
+    headers: { "Content-Type": file.type, "x-upsert": "true" },
+    body: file,
+  });
+  if (!put.ok) throw new ApiError(put.status, "Poster upload failed, please try again");
+  return request("POST", `${base}/confirm`, { path: ticket.path, filename: file.name || "poster" });
 }
 
 function getFilename(contentDisposition) {
@@ -77,6 +110,7 @@ export const api = {
   patch: (path, body) => request("PATCH", path, body),
   put: (path, body) => request("PUT", path, body),
   upload: (path, body) => request("POST", path, body),
+  uploadPoster,
   delete: (path) => request("DELETE", path),
   ApiError,
   getInitData,

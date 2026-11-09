@@ -256,9 +256,7 @@ export function renderNewProposal(root, navigate, user) {
       });
       const poster = form.poster.files[0];
       if (poster) {
-        const formData = new FormData();
-        formData.append("poster", poster);
-        await api.upload(`/api/proposals/${proposal.id}/poster`, formData);
+        await api.uploadPoster(proposal.id, poster);
       }
       await saveDisposableRequest(proposal, form);
       navigate(`proposal/${proposal.id}`);
@@ -307,9 +305,7 @@ export function renderNewProposal(root, navigate, user) {
         save_draft: true,
       });
       if (poster) {
-        const formData = new FormData();
-        formData.append("poster", poster);
-        await api.upload(`/api/proposals/${proposal.id}/poster`, formData);
+        await api.uploadPoster(proposal.id, poster);
       }
       await saveDisposableRequest(proposal, e.target);
       await api.patch(`/api/proposals/${proposal.id}`, { status: "in_review" });
@@ -735,9 +731,7 @@ function renderEditForm(slot, proposal, navigate, onSaved) {
         external_form_data: collectExternalFormData(slot),
       });
       if (poster) {
-        const formData = new FormData();
-        formData.append("poster", poster);
-        await api.upload(`/api/proposals/${proposal.id}/poster`, formData);
+        await api.uploadPoster(proposal.id, poster);
       }
       await onSaved();
     } catch (err) {

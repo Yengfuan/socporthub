@@ -58,9 +58,63 @@ class Settings(BaseSettings):
     # bot. 0 means announcing is disabled.
     announcement_telegram_id: int = 0
 
+    # Bearer token the scheduler (Supabase pg_cron) must send to /api/cron/*. Blank
+    # disables those endpoints.
+    cron_secret: str = ""
+    # Where scheduled jobs run: "auto" runs the in-process loops except on Vercel, where
+    # there is no long-lived process; "inprocess" / "external" force one or the other.
+    scheduler_mode: str = "auto"
+    # Vercel sets VERCEL=1 in every deployment.
+    vercel: bool = False
+
+    # Where posters and return photos live: "database" (bytea columns, the original
+    # behaviour) or "supabase" (a private Supabase Storage bucket). Rows already in the
+    # database keep working in either mode; scripts/move_files_to_storage.py moves them.
+    storage_mode: str = "database"
+    supabase_url: str = ""
+    supabase_service_role_key: str = ""
+    supabase_storage_bucket: str = "uploads"
+
     @property
     def migration_database_url(self) -> str:
         return self.database_url_direct or self.database_url
+
+    @property
+    def run_inprocess_scheduler(self) -> bool:
+        if self.scheduler_mode == "inprocess":
+            return True
+        if self.scheduler_mode == "external":
+            return False
+        return not self.vercel
+
+    @property
+    def uses_supabase_storage(self) -> bool:
+        return self.storage_mode == "supabase"
+
+    def production_problems(self) -> list[str]:
+        """Settings that are unsafe or missing for a production deploy (empty when fine)."""
+        if self.environment != "production":
+            return []
+        problems = []
+        if not self.secret_key or self.secret_key == "dev-secret-key":
+            problems.append("SECRET_KEY is unset or the development default")
+        if not self.telegram_bot_token:
+            problems.append("TELEGRAM_BOT_TOKEN is unset")
+        if not self.telegram_webhook_secret:
+            problems.append("TELEGRAM_WEBHOOK_SECRET is unset")
+        # CALENDAR_FEED_TOKEN is deliberately optional: production has always served the
+        # feed without one, and setting it would break every existing subscription URL.
+        if self.database_url.startswith("sqlite"):
+            problems.append("DATABASE_URL points at SQLite")
+        if not self.run_inprocess_scheduler and not self.cron_secret:
+            problems.append("CRON_SECRET is unset but scheduled jobs run externally")
+        if self.uses_supabase_storage and not (self.supabase_url and self.supabase_service_role_key):
+            problems.append("STORAGE_MODE=supabase needs SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY")
+        if self.storage_mode not in ("database", "supabase"):
+            problems.append(f"STORAGE_MODE must be database or supabase, not {self.storage_mode!r}")
+        if self.scheduler_mode not in ("auto", "inprocess", "external"):
+            problems.append(f"SCHEDULER_MODE must be auto, inprocess or external, not {self.scheduler_mode!r}")
+        return problems
 
     @property
     def admin_telegram_id_set(self) -> set[int]:

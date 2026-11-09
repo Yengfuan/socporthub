@@ -7,7 +7,7 @@ portfolio admin reviews, approves, and communicates — all from inside Telegram
 no separate login system.
 
 Built solo end-to-end: schema design, API, background jobs, Telegram bot, and a
-vanilla-JS frontend, deployed on Railway.
+vanilla-JS frontend, deployed on Vercel + Supabase.
 
 Full product spec: [`SOCIAL-PORT-HUB.md`](./SOCIAL-PORT-HUB.md).
 
@@ -45,7 +45,7 @@ Full product spec: [`SOCIAL-PORT-HUB.md`](./SOCIAL-PORT-HUB.md).
 | Frontend | Vanilla JS SPA | No build step, served as static files by FastAPI |
 | Email | Resend | Admin-editable draft → send, auto-advances proposal status |
 | Docs/Drive | Google Docs export and Drive folders | PDF export for email attachments; user-uploaded grading evidence |
-| Hosting | Railway | One process (`Procfile` runs migrations, then `uvicorn`) |
+| Hosting | Vercel + Supabase | One serverless function; Postgres, Storage and `pg_cron` on Supabase |
 
 ## Status
 
@@ -178,13 +178,41 @@ same host and user) so `alembic upgrade head` uses it instead. Add `?sslmode=req
 both. Migration `0029` enables row-level security on every table; turn the Data API off in
 the Supabase dashboard as well, and enable RLS in any migration that adds a table.
 
-## Deployment (Railway)
+## Deployment (Vercel + Supabase)
 
-1. New Railway project → add a PostgreSQL plugin → copy its `DATABASE_URL`.
-2. Deploy this repo (Railway reads `Procfile`, which runs migrations then starts uvicorn).
-3. Set all variables from `.env.example` in Railway's dashboard.
-4. Point `TELEGRAM_WEBAPP_URL` at the Railway-issued domain and re-run the `setWebhook`
-   step above.
+The app runs as one Vercel Function (the `web` service in `vercel.json`, entrypoint `api/main.py`) pinned to Tokyo
+(`hnd1`, next to the Supabase project) in `vercel.json`.
+
+- **Database**: Supabase Postgres, see above. Migrations are not run by Vercel: run
+  `alembic upgrade head` from a workstation or CI before deploying a change that adds one.
+- **Files**: with `STORAGE_MODE=supabase`, posters and borrow return photos live in the
+  private `uploads` Storage bucket. The browser uploads posters straight to Storage through
+  a one-time signed URL (`/api/proposals/{id}/poster/upload-url` → PUT → `/confirm`) and
+  downloads through short-lived signed URLs, so files never hit Vercel's 4.5 MB body limit.
+  `scripts/move_files_to_storage.py` moves bytes still stored in the database.
+- **Scheduled jobs**: there is no long-lived process on Vercel, so the in-process loops are
+  off there (`VERCEL=1` is detected automatically; `SCHEDULER_MODE` overrides). Supabase
+  `pg_cron` + `pg_net` call `POST /api/cron/{grading,reminder-nudges,collection-digest,borrow-reminders}`
+  with `Authorization: Bearer $CRON_SECRET`. `supabase/setup.sql` creates the bucket,
+  stores the URL and secret in Vault, and schedules the jobs.
+- **Telegram webhook**: updates are handled before the response is returned (background
+  work after a response is not reliable on serverless).
+- **Start-up guard**: with `ENVIRONMENT=production` the app refuses to start if
+  `SECRET_KEY`, `TELEGRAM_BOT_TOKEN`, `TELEGRAM_WEBHOOK_SECRET`, `CALENDAR_FEED_TOKEN`,
+  `CRON_SECRET` (when jobs run externally) or the Supabase Storage settings are missing.
+
+First deploy / cutover:
+
+1. Set the environment variables in Vercel (everything in `.env`, plus `ENVIRONMENT=production`,
+   `STORAGE_MODE=supabase`, `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`, `CRON_SECRET`) and deploy.
+2. Pause the old deployment, then `alembic upgrade head` on Supabase and copy the data with
+   `scripts/copy_database.py --replace`, then `scripts/move_files_to_storage.py`.
+3. Run `supabase/setup.sql` in the Supabase SQL editor with the deployed URL and `CRON_SECRET`.
+4. Point `TELEGRAM_WEBAPP_URL` and the BotFather menu button at the Vercel domain, redeploy,
+   and re-run the `setWebhook` step above.
+
+The `Procfile` still works for a single long-running host (Railway); there the in-process
+scheduler runs as before and `STORAGE_MODE` can stay `database`.
 
 ## Project layout
 

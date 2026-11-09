@@ -2,6 +2,7 @@
 and the scheduled reminders. Used by both the Telegram flows and the web API."""
 
 import json
+import logging
 from datetime import date, datetime, timezone
 from zoneinfo import ZoneInfo
 
@@ -10,6 +11,9 @@ from sqlalchemy.orm import Session
 
 from api.config import get_settings
 from api.models import BorrowRequest, BorrowStatus, BotConversation, User, UserRole, UserStatus
+from api.services import storage
+
+logger = logging.getLogger(__name__)
 
 # The physical inventory the owner is responsible for.
 ITEM_TOTALS: dict[str, int] = {"tables": 4, "cambro": 1}
@@ -126,13 +130,26 @@ def submit_return_proof(
         raise HTTPException(status.HTTP_409_CONFLICT, "This request is not waiting for a return photo")
     if data is not None and len(data) > MAX_PROOF_BYTES:
         raise HTTPException(status.HTTP_413_REQUEST_ENTITY_TOO_LARGE, "Photo must be 10 MB or smaller")
+    path = None
+    if data is not None and get_settings().uses_supabase_storage:
+        path = storage.new_path(f"borrow-proofs/{request.id}", "return.jpg")
+        try:
+            storage.upload(path, data, content_type or "image/jpeg")
+            data = None
+        except storage.StorageError:
+            # Keep the bytes in the row instead of losing the photo; reads handle both.
+            logger.exception("Could not store return photo for borrow request %s", request.id)
+            path = None
+    old_path = request.return_proof_storage_path
     request.status = BorrowStatus.return_submitted
     request.return_proof_file_id = file_id
     request.return_proof_content_type = content_type
     request.return_proof_data = data
+    request.return_proof_storage_path = path
     request.return_submitted_at = datetime.now(timezone.utc)
     db.commit()
     db.refresh(request)
+    storage.delete(old_path)
     return request
 
 
@@ -146,15 +163,19 @@ def decide_return(db: Session, admin: User, request_id: int, confirmed: bool) ->
     if request.status != BorrowStatus.return_submitted:
         raise HTTPException(status.HTTP_409_CONFLICT, "No return photo is waiting for confirmation")
     request.status = target
+    discarded_path = None
     if confirmed:
         request.returned_at = datetime.now(timezone.utc)
     else:
+        discarded_path = request.return_proof_storage_path
         request.return_proof_file_id = None
         request.return_proof_content_type = None
         request.return_proof_data = None
+        request.return_proof_storage_path = None
         request.return_submitted_at = None
     db.commit()
     db.refresh(request)
+    storage.delete(discarded_path)
     return request, True
 
 
@@ -189,8 +210,10 @@ def delete_borrow(db: Session, admin: User, request_id: int) -> dict:
             continue
         if request_id in (payload.get("request_id"), payload.get("target_id")):
             db.delete(conversation)
+    proof_path = request.return_proof_storage_path
     db.delete(request)
     db.commit()
+    storage.delete(proof_path)
     return snapshot
 
 

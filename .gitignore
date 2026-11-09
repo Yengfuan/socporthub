@@ -26,3 +26,10 @@ docs/scheduled-jobs-migration.md
 
 # Local VibeWise learning notes (not committed).
 .vibe-wise/
+
+# Vercel CLI project link and local memory index (not committed).
+.vercel/
+.memsearch/
+
+# Local env files (.env.local from `vercel link`, .env.vercel with production values).
+.env*

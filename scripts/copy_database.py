@@ -30,8 +30,10 @@ from sqlalchemy.exc import OperationalError  # noqa: E402
 from api import models  # noqa: E402,F401  registers every table on Base.metadata
 from api.database import Base  # noqa: E402
 
-# Tables are identical in revisions 0028 and 0029 (0029 only enables row-level security).
-SUPPORTED_REVISIONS = {"0028", "0029", "0030"}
+# Revisions whose tables this script understands. The destination may be newer than the
+# source (e.g. Railway at 0032 -> Supabase at 0033): only columns the source has are read,
+# and columns added later keep their defaults (0033 only adds nullable columns and a table).
+SUPPORTED_REVISIONS = {"0028", "0029", "0030", "0031", "0032", "0033"}
 BATCH_ROWS = 500
 BATCH_ROWS_WITH_BINARY = 25  # posters and return photos are large
 
@@ -127,7 +129,9 @@ def copy_database(source: Engine, dest: Engine, *, replace: bool, log=print) -> 
                 copied[table.name] = 0
                 continue
             order = [column for column in table.primary_key.columns]  # parents first for self-references
-            result = read.execution_options(stream_results=True).execute(select(table).order_by(*order))
+            source_columns = {column["name"] for column in inspect(source).get_columns(table.name)}
+            columns = [column for column in table.columns if column.name in source_columns]
+            result = read.execution_options(stream_results=True).execute(select(*columns).order_by(*order))
             size = BATCH_ROWS_WITH_BINARY if _has_binary(table) else BATCH_ROWS
             total = 0
             while True:
@@ -176,6 +180,11 @@ def main() -> None:
                 f"The {name} database is at revision {value}; expected one of {sorted(SUPPORTED_REVISIONS)}. "
                 "Bring it to head with `alembic upgrade head` first so the tables match."
             )
+    if dest_revision < source_revision:
+        raise SystemExit(
+            f"The destination ({dest_revision}) is older than the source ({source_revision}). "
+            "Run `alembic upgrade head` on the destination first."
+        )
 
     tables = list(Base.metadata.sorted_tables)
     source_counts, dest_counts = table_counts(source, tables), table_counts(dest, tables)

@@ -5,7 +5,7 @@ from fastapi import FastAPI, Request
 from fastapi.staticfiles import StaticFiles
 
 from api.routes import auth, borrow, bug_reports, calendar, committees, disposables, email, proposals, reminders, telegram_webhook, users
-from api.routes import grading, ai_review, proposal_deletions
+from api.routes import grading, ai_review, cron, proposal_deletions
 
 logging.basicConfig(level=logging.INFO)
 
@@ -28,7 +28,15 @@ async def disable_webapp_asset_caching(request: Request, call_next):
 async def start_scheduled_notifications() -> None:
     global collection_reminder_task, grading_task, reminder_nudge_task, borrow_reminder_task
     from api.config import get_settings
-    if get_settings().environment == "production":
+    settings = get_settings()
+    problems = settings.production_problems()
+    if problems:
+        # Refuse to serve a production deploy with insecure or missing settings.
+        raise RuntimeError("Unsafe production configuration: " + "; ".join(problems))
+    if not settings.run_inprocess_scheduler:
+        # Serverless (Vercel): pg_cron calls /api/cron/* instead (api/routes/cron.py).
+        return
+    if settings.environment == "production":
         from api.services.scheduled_notifications import (
             borrow_reminder_loop,
             collection_reminder_loop,
@@ -67,6 +75,7 @@ app.include_router(borrow.router)
 app.include_router(email.router)
 app.include_router(reminders.router)
 app.include_router(telegram_webhook.router)
+app.include_router(cron.router)
 
 
 @app.get("/api/health")

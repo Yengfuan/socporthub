@@ -125,3 +125,16 @@ def test_unreachable_database_gives_a_readable_message_with_a_railway_hint():
         copy_database.check_connection(unreachable, "source")
     assert "DATABASE_PUBLIC_URL" in copy_database.connection_hint("postgres.railway.internal")
     assert "DATABASE_PUBLIC_URL" not in copy_database.connection_hint("db.example.com")
+
+
+def test_copies_from_a_source_one_migration_behind(pair):
+    """Railway (older) -> Supabase (newer): columns and tables the source lacks are skipped."""
+    source, dest = pair
+    with source.begin() as connection:
+        connection.execute(text("ALTER TABLE proposals DROP COLUMN poster_storage_path"))
+        connection.execute(text("ALTER TABLE borrow_requests DROP COLUMN return_proof_storage_path"))
+        connection.execute(text("DROP TABLE scheduled_job_runs"))
+    copied = copy_database.copy_database(source, dest, replace=True, log=lambda *_: None)
+    assert copied["proposals"] == 1 and copied["scheduled_job_runs"] == 0
+    with dest.connect() as connection:
+        assert connection.execute(select(Proposal.poster_data, Proposal.poster_storage_path)).one() == (b"\x89PNG-bytes", None)
