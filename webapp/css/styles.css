@@ -492,6 +492,23 @@ a.card:active { transform: scale(0.98); }
   font-weight: 700;
 }
 
+.proposal-card-warning {
+  margin-top: var(--space-2);
+  color: #b45309;
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.blockout-warning {
+  margin: var(--space-2) 0;
+  padding: 10px 12px;
+  border-radius: 10px;
+  background: #fef3c7;
+  color: #92400e;
+  font-size: 13px;
+  font-weight: 600;
+}
+
 .proposal-card-notice {
   margin-top: var(--space-2);
   color: var(--accent);
@@ -916,6 +933,14 @@ a.card:active { transform: scale(0.98); }
   gap: 2px;
   flex-wrap: wrap;
   justify-content: center;
+}
+
+.cal-blockout {
+  color: #d97706;
+  font-size: 12px;
+  line-height: 1;
+  width: 100%;
+  text-align: center;
 }
 
 .cal-dot {

@@ -354,6 +354,7 @@ export async function renderProposalDetail(root, user, proposalId, navigate) {
 
     <h1>${escapeHtml(proposal.title)}</h1>
     <p>${escapeHtml(proposal.committee_name)} · Submitted by ${escapeHtml(proposal.submitter_name || "")}</p>
+    ${proposal.blockout_clash ? `<div class="blockout-warning">&#9888; ${escapeHtml(proposal.blockout_clash)}. Check the date before approving.</div>` : ""}
     ${isAdmin ? `<div id="ai-review-slot"></div>` : ""}
     <div id="grading-slot"></div>
 

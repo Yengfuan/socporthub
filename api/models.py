@@ -13,6 +13,7 @@ from sqlalchemy import (
     String,
     Time,
     Text,
+    false,
     func,
     UniqueConstraint,
 )
@@ -356,6 +357,9 @@ class CalendarEvent(Base):
     title: Mapped[str] = mapped_column(String(255), nullable=False)
     description: Mapped[str | None] = mapped_column(Text)
     event_date: Mapped[date] = mapped_column(Date, nullable=False)
+    # Block-out: the owning committee holds this date, so other committees' proposals
+    # for it are flagged. Only admins can set this (enforced in routes/calendar.py).
+    is_blockout: Mapped[bool] = mapped_column(Boolean, default=False, server_default=false(), nullable=False)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
 
     committee: Mapped["Committee"] = relationship(back_populates="calendar_events")

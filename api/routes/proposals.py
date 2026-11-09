@@ -5,7 +5,7 @@ from fastapi import APIRouter, Depends, File, HTTPException, UploadFile, status
 from fastapi.responses import Response
 from fastapi import Query
 from sqlalchemy import func
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, object_session
 
 from api.auth import get_current_user
 from api.config import get_settings
@@ -49,6 +49,7 @@ from api.services.google_docs import download_google_doc_pdf, proposal_pdf_filen
 from api.services.document_links import verify_document_token
 from api.services.email_attachments import proposal_pdf_attachment
 from api.services.resend_email import send_email
+from api.services.blockouts import blockout_clash
 from api.services.grading import RUBRICS
 from api.services.google_drive import provision_evidence
 
@@ -75,6 +76,7 @@ def _to_out(p: Proposal, *, latest_comment_at=None, unread_comment_count: int = 
         external_form_data = {}
     return ProposalOut(
         grading_available=get_settings().grading_enabled and p.category.value in RUBRICS,
+        blockout_clash=blockout_clash(object_session(p), p),
         id=p.id,
         committee_id=p.committee_id,
         committee_name=p.committee.name,

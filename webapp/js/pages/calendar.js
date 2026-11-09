@@ -51,6 +51,8 @@ export async function renderCalendar(root, user, state = {}) {
     const inMonth = d >= first && d <= last;
     const isToday = iso === toISODate(today);
     const dayEvents = eventsByDate.get(iso) || [];
+    const hasBlockout = dayEvents.some((e) => e.is_blockout);
+    const dotEvents = dayEvents.filter((e) => !e.is_blockout);
 
     cells.push(`
       <div class="cal-cell ${inMonth ? "" : "cal-cell-outside"} ${isToday ? "cal-cell-today" : ""} ${
@@ -58,7 +60,8 @@ export async function renderCalendar(root, user, state = {}) {
     }" data-date="${iso}">
         <div class="cal-daynum">${d.getUTCDate()}</div>
         <div class="cal-dots">
-          ${dayEvents
+          ${hasBlockout ? `<span class="cal-blockout" title="Block-out date" aria-label="Block-out date">&#9888;</span>` : ""}
+          ${dotEvents
             .slice(0, 3)
             .map((e) => `<span class="cal-dot" style="background:${e.committee_color || "var(--text-muted)"}"></span>`)
             .join("")}
@@ -76,6 +79,7 @@ export async function renderCalendar(root, user, state = {}) {
            </p>`
         : ""
     }
+    <p style="margin-top:-8px"><a href="#" id="cal-blockouts">&#9888; View block-out dates</a></p>
 
     <div class="chip-row">
       <div class="chip ${!committeeId ? "active" : ""}" data-committee="">All</div>
@@ -132,6 +136,10 @@ export async function renderCalendar(root, user, state = {}) {
     e.preventDefault();
     renderSubscribePanel(root.querySelector("#cal-day-panel"), feed.url);
   });
+  root.querySelector("#cal-blockouts").addEventListener("click", (e) => {
+    e.preventDefault();
+    renderBlockoutPanel(root.querySelector("#cal-day-panel"));
+  });
   root.querySelector("#cal-add-event")?.addEventListener("click", () => {
     renderCalendar(root, user, { year, month, committeeId, selectedDate, addingEvent: !addingEvent });
   });
@@ -179,6 +187,30 @@ function renderSubscribePanel(panel, url) {
   });
 }
 
+async function renderBlockoutPanel(panel) {
+  panel.innerHTML = `<div class="loading">Loading…</div>`;
+  const blockouts = await api.get("/api/calendar/blockouts");
+  panel.innerHTML = `
+    <div class="card">
+      <h3>&#9888; Block-out dates</h3>
+      <p>No other CCA should hold an event on these dates. A proposal on one of them is flagged for review.</p>
+      ${
+        blockouts.length
+          ? blockouts
+              .map(
+                (b) => `
+        <div style="display:flex; justify-content:space-between; align-items:center; gap:8px; margin-top:8px;">
+          <div><div class="title">${escapeHtml(b.title)}</div><div class="meta">${b.date}</div></div>
+          <span class="badge" style="background:${b.committee_color}20; color:${b.committee_color}">${escapeHtml(b.committee_name)}</span>
+        </div>`
+              )
+              .join("")
+          : `<p>No upcoming block-out dates.</p>`
+      }
+    </div>
+  `;
+}
+
 function groupByDate(items, keyFn) {
   const map = new Map();
   for (const item of items) {
@@ -201,7 +233,7 @@ function renderDayPanel(panel, dateStr, events, user, refresh) {
               (e) => `
         <div class="card" data-event-id="${e.id}">
           <div style="display:flex; justify-content:space-between; align-items:center;">
-            <div class="title">${escapeHtml(e.title)}</div>
+            <div class="title">${e.is_blockout ? "&#9888; " : ""}${escapeHtml(e.title)}${e.is_blockout ? " (block-out)" : ""}</div>
             <span class="badge" style="background:${e.committee_color}20; color:${e.committee_color}">${escapeHtml(e.committee_name)}</span>
           </div>
           ${e.description ? `<p>${escapeHtml(e.description)}</p>` : ""}
@@ -254,6 +286,10 @@ function renderEventEditForm(slot, event, refresh) {
         <label>Date</label>
         <input type="date" name="date" value="${event.date}" required />
       </div>
+      <label class="field" style="display:flex; gap:8px; align-items:center;">
+        <input type="checkbox" name="is_blockout" ${event.is_blockout ? "checked" : ""} style="width:auto" />
+        Block-out date (other CCAs shouldn't hold events on it)
+      </label>
       <div id="edit-event-error"></div>
       <button type="submit" class="btn">Save Changes</button>
     </form>
@@ -267,6 +303,7 @@ function renderEventEditForm(slot, event, refresh) {
         title: e.target.title.value.trim(),
         description: e.target.description.value.trim() || null,
         event_date: e.target.date.value,
+        is_blockout: e.target.is_blockout.checked,
       });
       refresh();
     } catch (err) {
@@ -302,6 +339,14 @@ function renderEventForm(panel, user, committees, selectedDate, onSaved) {
              </div>`
           : ""
       }
+      ${
+        isAdmin
+          ? `<label class="field" style="display:flex; gap:8px; align-items:center;">
+               <input type="checkbox" id="ev-blockout" style="width:auto" />
+               Block-out date (other CCAs shouldn't hold events on it)
+             </label>`
+          : ""
+      }
       <div id="event-error"></div>
       <button type="submit" class="btn">Add Event</button>
     </form>
@@ -316,6 +361,7 @@ function renderEventForm(panel, user, committees, selectedDate, onSaved) {
         description: panel.querySelector("#ev-description").value.trim() || null,
         event_date: panel.querySelector("#ev-date").value,
         committee_id: isAdmin ? Number(panel.querySelector("#ev-committee").value) : null,
+        is_blockout: isAdmin ? panel.querySelector("#ev-blockout").checked : false,
       });
       onSaved();
     } catch (err) {

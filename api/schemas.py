@@ -141,6 +141,8 @@ class ProposalOut(BaseModel):
     requested_ccas: list[str] = []
     external_form_data: dict[str, dict] = {}
     grading_available: bool = False
+    # Set when another committee holds a block-out on this proposal's event date.
+    blockout_clash: str | None = None
 
 
 class AiReviewRequest(BaseModel):
@@ -251,12 +253,14 @@ class CalendarEventCreate(BaseModel):
     description: str | None = None
     event_date: date
     committee_id: int | None = None  # required for admins, who have no committee of their own
+    is_blockout: bool = False  # admin-only; rejected for everyone else
 
 
 class CalendarEventUpdate(BaseModel):
     title: str | None = None
     description: str | None = None
     event_date: date | None = None
+    is_blockout: bool | None = None
 
 
 class CalendarEventOut(BaseModel):
@@ -267,6 +271,7 @@ class CalendarEventOut(BaseModel):
     committee_id: int
     committee_name: str
     committee_color: str
+    is_blockout: bool = False
 
 
 class CalendarFeedUrlOut(BaseModel):
