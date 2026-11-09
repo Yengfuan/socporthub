@@ -1,5 +1,6 @@
 import { api } from "../api.js";
 import { renderGrading } from "../components/grading.js?v=grading-3";
+import { renderDeletionSection } from "../components/proposal-deletion.js";
 import { statusBadge } from "../components/status-badge.js";
 import { renderDisposableSection } from "../components/disposable-form.js";
 import { collectExternalFormData, loadCommitteeFormFields, renderCommitteeFormsSection } from "../components/committee-forms.js";
@@ -410,6 +411,7 @@ export async function renderProposalDetail(root, user, proposalId, navigate) {
         : ""
     }
 
+    <div id="deletion-slot"></div>
     <div id="detail-error"></div>
     <div id="comments-slot" class="comments-slot"></div>
   `;
@@ -417,6 +419,7 @@ export async function renderProposalDetail(root, user, proposalId, navigate) {
   renderCommitteeFormsSection(root.querySelector("#committee-forms-slot"), proposal);
   renderDisposableSection(root.querySelector("#disposable-slot"), user, proposal);
   renderCommentsSection(root.querySelector("#comments-slot"), user, proposal);
+  renderDeletionSection(root.querySelector("#deletion-slot"), user, proposal, navigate);
   if (isAdmin) renderAiReview(root.querySelector("#ai-review-slot"), proposal);
   await renderGrading(root.querySelector("#grading-slot"), user, proposal,
     () => renderProposalDetail(root, user, proposalId, navigate));

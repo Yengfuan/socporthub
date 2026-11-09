@@ -348,12 +348,47 @@ class BotConversation(Base):
     )
 
 
+class DeletionRequestStatus(str, enum.Enum):
+    pending = "pending"
+    approved = "approved"
+    rejected = "rejected"
+
+
+class ProposalDeletionRequest(Base):
+    """A user's request to have one of their proposals deleted, pending admin approval.
+
+    Deliberately has no foreign key to proposals: approval hard-deletes the proposal,
+    and this row must outlive it as the record of who asked, why, and who decided. The
+    title and committee are copied here for the same reason."""
+    __tablename__ = "proposal_deletion_requests"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    proposal_id: Mapped[int] = mapped_column(Integer, nullable=False, index=True)
+    proposal_title: Mapped[str] = mapped_column(String(255), nullable=False)
+    committee_id: Mapped[int] = mapped_column(ForeignKey("committees.id"), nullable=False)
+    requested_by: Mapped[int] = mapped_column(ForeignKey("users.id"), nullable=False)
+    reason: Mapped[str] = mapped_column(Text, nullable=False)
+    status: Mapped[DeletionRequestStatus] = mapped_column(
+        Enum(DeletionRequestStatus, native_enum=False), default=DeletionRequestStatus.pending, nullable=False
+    )
+    decided_by: Mapped[int | None] = mapped_column(ForeignKey("users.id"))
+    decided_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    decision_note: Mapped[str | None] = mapped_column(Text)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+    committee: Mapped["Committee"] = relationship()
+    requester: Mapped["User"] = relationship(foreign_keys=[requested_by])
+
+
 class CalendarEvent(Base):
     __tablename__ = "calendar_events"
 
     id: Mapped[int] = mapped_column(primary_key=True)
     committee_id: Mapped[int] = mapped_column(ForeignKey("committees.id"), nullable=False)
     created_by: Mapped[int] = mapped_column(ForeignKey("users.id"), nullable=False)
+    # Set when the entry was created from a finished proposal, so deleting that
+    # proposal can remove its calendar entry too. Null for events added by hand.
+    proposal_id: Mapped[int | None] = mapped_column(ForeignKey("proposals.id"), nullable=True)
     title: Mapped[str] = mapped_column(String(255), nullable=False)
     description: Mapped[str | None] = mapped_column(Text)
     event_date: Mapped[date] = mapped_column(Date, nullable=False)

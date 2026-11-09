@@ -392,3 +392,25 @@ class BorrowReturnDecision(BaseModel):
 
 class BorrowDeleteRequest(BaseModel):
     reason: str | None = Field(default=None, max_length=1000)
+
+
+class DeletionRequestCreate(BaseModel):
+    proposal_id: int
+    reason: str = Field(min_length=1, max_length=1000)
+
+
+class DeletionRequestDecision(BaseModel):
+    note: str | None = Field(default=None, max_length=1000)
+
+
+class DeletionRequestOut(BaseModel):
+    id: int
+    proposal_id: int
+    proposal_title: str
+    committee_name: str
+    requester_name: str | None
+    reason: str
+    status: str
+    decision_note: str | None
+    created_at: datetime
+    decided_at: datetime | None
