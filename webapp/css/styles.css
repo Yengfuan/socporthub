@@ -935,6 +935,32 @@ a.card:active { transform: scale(0.98); }
   justify-content: center;
 }
 
+/* Month navigation: Prev | Month Year | Next. Its own class because the shared
+   .page-header is left-packed for the greeting row. */
+.cal-nav {
+  display: grid;
+  grid-template-columns: 1fr auto 1fr;
+  align-items: center;
+  gap: var(--space-2);
+  margin: var(--space-3) 0;
+}
+.cal-nav h2 { margin: 0; text-align: center; font-size: 17px; white-space: nowrap; }
+.cal-nav-btn {
+  min-height: 40px;
+  padding: 0 14px;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: var(--surface);
+  color: var(--text);
+  font: inherit;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+}
+.cal-nav-btn:first-child { justify-self: start; }
+.cal-nav-btn:last-child { justify-self: end; }
+.cal-nav-btn:active { background: var(--border); }
+
 .cal-blockout {
   color: #d97706;
   font-size: 12px;

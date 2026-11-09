@@ -91,10 +91,10 @@ export async function renderCalendar(root, user, state = {}) {
         .join("")}
     </div>
 
-    <div class="page-header">
-      <span class="back" id="cal-prev">&larr; Prev</span>
+    <div class="cal-nav">
+      <button type="button" class="cal-nav-btn" id="cal-prev" aria-label="Previous month">&larr; Prev</button>
       <h2>${monthLabel}</h2>
-      <span class="back" id="cal-next">Next &rarr;</span>
+      <button type="button" class="cal-nav-btn" id="cal-next" aria-label="Next month">Next &rarr;</button>
     </div>
 
     <div class="cal-grid cal-grid-header">
