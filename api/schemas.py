@@ -141,6 +141,8 @@ class ProposalOut(BaseModel):
     requested_ccas: list[str] = []
     external_form_data: dict[str, dict] = {}
     grading_available: bool = False
+    # Set when another committee holds a block-out on this proposal's event date.
+    blockout_clash: str | None = None
 
 
 class AiReviewRequest(BaseModel):
@@ -251,12 +253,14 @@ class CalendarEventCreate(BaseModel):
     description: str | None = None
     event_date: date
     committee_id: int | None = None  # required for admins, who have no committee of their own
+    is_blockout: bool = False  # admin-only; rejected for everyone else
 
 
 class CalendarEventUpdate(BaseModel):
     title: str | None = None
     description: str | None = None
     event_date: date | None = None
+    is_blockout: bool | None = None
 
 
 class CalendarEventOut(BaseModel):
@@ -267,6 +271,7 @@ class CalendarEventOut(BaseModel):
     committee_id: int
     committee_name: str
     committee_color: str
+    is_blockout: bool = False
 
 
 class CalendarFeedUrlOut(BaseModel):
@@ -387,3 +392,25 @@ class BorrowReturnDecision(BaseModel):
 
 class BorrowDeleteRequest(BaseModel):
     reason: str | None = Field(default=None, max_length=1000)
+
+
+class DeletionRequestCreate(BaseModel):
+    proposal_id: int
+    reason: str = Field(min_length=1, max_length=1000)
+
+
+class DeletionRequestDecision(BaseModel):
+    note: str | None = Field(default=None, max_length=1000)
+
+
+class DeletionRequestOut(BaseModel):
+    id: int
+    proposal_id: int
+    proposal_title: str
+    committee_name: str
+    requester_name: str | None
+    reason: str
+    status: str
+    decision_note: str | None
+    created_at: datetime
+    decided_at: datetime | None

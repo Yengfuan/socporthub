@@ -5,7 +5,7 @@ from fastapi import APIRouter, Depends, File, HTTPException, UploadFile, status
 from fastapi.responses import Response
 from fastapi import Query
 from sqlalchemy import func
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, object_session
 
 from api.auth import get_current_user
 from api.config import get_settings
@@ -49,6 +49,8 @@ from api.services.google_docs import download_google_doc_pdf, proposal_pdf_filen
 from api.services.document_links import verify_document_token
 from api.services.email_attachments import proposal_pdf_attachment
 from api.services.resend_email import send_email
+from api.services.blockouts import blockout_clash
+from api.services.proposal_deletion import delete_proposal
 from api.services.grading import RUBRICS
 from api.services.google_drive import provision_evidence
 
@@ -75,6 +77,7 @@ def _to_out(p: Proposal, *, latest_comment_at=None, unread_comment_count: int = 
         external_form_data = {}
     return ProposalOut(
         grading_available=get_settings().grading_enabled and p.category.value in RUBRICS,
+        blockout_clash=blockout_clash(object_session(p), p),
         id=p.id,
         committee_id=p.committee_id,
         committee_name=p.committee.name,
@@ -270,6 +273,21 @@ def get_proposal(
     return _to_out(get_visible_proposal(db, user, proposal_id))
 
 
+@router.delete("/{proposal_id}", status_code=status.HTTP_204_NO_CONTENT)
+def delete_proposal_route(
+    proposal_id: int,
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
+) -> None:
+    """Admin hard-delete. Users can't call this; they file a deletion request that an
+    admin approves (api/routes/proposal_deletions.py)."""
+    if user.role != UserRole.admin:
+        raise HTTPException(status.HTTP_403_FORBIDDEN, "Only admins can delete a proposal directly")
+    proposal = get_visible_proposal(db, user, proposal_id)
+    delete_proposal(db, proposal, decided_by=user)
+    db.commit()
+
+
 @router.patch("/{proposal_id}", response_model=ProposalOut)
 async def update_proposal(
     proposal_id: int,
@@ -363,6 +381,7 @@ async def update_proposal(
             CalendarEvent(
                 committee_id=proposal.committee_id,
                 created_by=user.id,
+                proposal_id=proposal.id,
                 title=proposal.title,
                 description=proposal.description,
                 event_date=proposal.event_date,

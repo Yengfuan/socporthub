@@ -34,6 +34,7 @@ def _to_out(e: CalendarEvent) -> CalendarEventOut:
         committee_id=e.committee_id,
         committee_name=e.committee.name,
         committee_color=e.committee.color,
+        is_blockout=e.is_blockout,
     )
 
 
@@ -60,12 +61,30 @@ def get_events(
     return [_to_out(e) for e in query.order_by(CalendarEvent.event_date).all()]
 
 
+@router.get("/blockouts", response_model=list[CalendarEventOut])
+def list_blockouts(
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
+) -> list[CalendarEventOut]:
+    """Upcoming block-out dates for every committee — what the Calendar tab's
+    "Block-out dates" button shows. Past block-outs are history, so they're left out."""
+    query = db.query(CalendarEvent).filter(
+        CalendarEvent.is_blockout.is_(True), CalendarEvent.event_date >= date.today()
+    )
+    if user.role == UserRole.admin:
+        query = query.join(CalendarEvent.committee).filter(admin_committee_filter(user))
+    return [_to_out(e) for e in query.order_by(CalendarEvent.event_date).all()]
+
+
 @router.post("", response_model=CalendarEventOut, status_code=status.HTTP_201_CREATED)
 def add_event(
     req: CalendarEventCreate,
     db: Session = Depends(get_db),
     user: User = Depends(get_current_user),
 ) -> CalendarEventOut:
+    if req.is_blockout and user.role != UserRole.admin:
+        # The flag is enforced here, not just hidden in the UI.
+        raise HTTPException(status.HTTP_403_FORBIDDEN, "Only admins can create block-out dates")
     if user.role == UserRole.admin:
         if req.committee_id is None:
             raise HTTPException(status.HTTP_400_BAD_REQUEST, "committee_id is required for admin-created events")
@@ -87,6 +106,7 @@ def add_event(
         title=req.title,
         description=req.description,
         event_date=req.event_date,
+        is_blockout=req.is_blockout,
     )
     db.add(event)
     db.commit()
@@ -119,6 +139,8 @@ def update_event(
         event.description = req.description
     if req.event_date is not None:
         event.event_date = req.event_date
+    if req.is_blockout is not None:
+        event.is_blockout = req.is_blockout
     db.commit()
     db.refresh(event)
     return _to_out(event)
@@ -161,7 +183,8 @@ def calendar_feed(
     for e in events:
         start_str = e.event_date.strftime("%Y%m%d")
         end_str = (e.event_date + timedelta(days=1)).strftime("%Y%m%d")
-        summary = _escape_ics_text(f"[{e.committee.name}] {e.title}")
+        label = "BLOCKED: " if e.is_blockout else ""
+        summary = _escape_ics_text(f"[{e.committee.name}] {label}{e.title}")
         lines += ["BEGIN:VEVENT", f"UID:{e.id}@socporthub", f"DTSTAMP:{now_stamp}"]
         lines += [f"DTSTART;VALUE=DATE:{start_str}", f"DTEND;VALUE=DATE:{end_str}", f"SUMMARY:{summary}"]
         if e.description:

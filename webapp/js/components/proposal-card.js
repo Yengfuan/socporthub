@@ -29,6 +29,7 @@ export function proposalCard(proposal, { showCommittee = false } = {}) {
   )} · ${dateStr}</span>
         ${statusBadge(proposal.status)}
       </div>
+      ${proposal.blockout_clash ? `<div class="proposal-card-warning">&#9888; ${escapeHtml(proposal.blockout_clash)}</div>` : ""}
       ${proposal.unread_comment_count ? `<div class="proposal-card-notice">💬 ${proposal.unread_comment_count} new comment${proposal.unread_comment_count === 1 ? "" : "s"}</div>` : ""}
       </div>
     </a>
