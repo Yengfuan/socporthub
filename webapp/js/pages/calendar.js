@@ -8,6 +8,38 @@ function escapeHtml(s) {
   return div.innerHTML;
 }
 
+const ICON_WARNING = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M10.3 3.9 1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0z"/><path d="M12 9v4M12 17h.01"/></svg>`;
+const ICON_CALENDAR_PLUS = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18M12 14v4M10 16h4"/></svg>`;
+
+// A popup with a × button. Closes on ×, a click outside the panel, or Escape.
+// Returns the body element for the caller to fill.
+function openModal(title) {
+  document.querySelector(".cal-modal")?.remove();
+  const modal = document.createElement("div");
+  modal.className = "cal-modal";
+  modal.innerHTML = `
+    <div class="cal-modal-backdrop" data-modal-close></div>
+    <div class="cal-modal-panel" role="dialog" aria-modal="true" aria-label="${escapeHtml(title)}">
+      <div class="cal-modal-header">
+        <h3>${escapeHtml(title)}</h3>
+        <button type="button" class="cal-modal-close" data-modal-close aria-label="Close">&times;</button>
+      </div>
+      <div class="cal-modal-body"></div>
+    </div>`;
+  const close = () => {
+    modal.remove();
+    document.removeEventListener("keydown", onKey);
+  };
+  const onKey = (e) => {
+    if (e.key === "Escape") close();
+  };
+  modal.querySelectorAll("[data-modal-close]").forEach((el) => el.addEventListener("click", close));
+  document.addEventListener("keydown", onKey);
+  document.body.appendChild(modal);
+  modal.querySelector(".cal-modal-close").focus();
+  return modal.querySelector(".cal-modal-body");
+}
+
 function toISODate(d) {
   return d.toISOString().slice(0, 10);
 }
@@ -72,14 +104,14 @@ export async function renderCalendar(root, user, state = {}) {
 
   root.innerHTML = `
     <h1>Calendar</h1>
-    ${
-      feed
-        ? `<p style="margin-top:-8px">
-             <a href="#" id="cal-subscribe">Subscribe from your phone's calendar app</a>
-           </p>`
-        : ""
-    }
-    <p style="margin-top:-8px"><a href="#" id="cal-blockouts">&#9888; View block-out dates</a></p>
+    <div class="cal-toolbar">
+      <button type="button" class="cal-action-btn" id="cal-blockouts">${ICON_WARNING}<span>Block-out dates</span></button>
+      ${
+        feed
+          ? `<button type="button" class="cal-action-btn" id="cal-subscribe" title="Subscribe from your phone's calendar app">${ICON_CALENDAR_PLUS}<span>Subscribe</span></button>`
+          : ""
+      }
+    </div>
 
     <div class="chip-row">
       <div class="chip ${!committeeId ? "active" : ""}" data-committee="">All</div>
@@ -132,13 +164,11 @@ export async function renderCalendar(root, user, state = {}) {
       renderCalendar(root, user, { year, month, committeeId, selectedDate: cell.dataset.date });
     });
   });
-  root.querySelector("#cal-subscribe")?.addEventListener("click", (e) => {
-    e.preventDefault();
-    renderSubscribePanel(root.querySelector("#cal-day-panel"), feed.url);
+  root.querySelector("#cal-subscribe")?.addEventListener("click", () => {
+    renderSubscribePanel(openModal("Subscribe from your calendar app"), feed.url);
   });
-  root.querySelector("#cal-blockouts").addEventListener("click", (e) => {
-    e.preventDefault();
-    renderBlockoutPanel(root.querySelector("#cal-day-panel"));
+  root.querySelector("#cal-blockouts").addEventListener("click", () => {
+    renderBlockoutPanel(openModal("Block-out dates"));
   });
   root.querySelector("#cal-add-event")?.addEventListener("click", () => {
     renderCalendar(root, user, { year, month, committeeId, selectedDate, addingEvent: !addingEvent });
@@ -168,19 +198,16 @@ async function fetchEvents(year, month, committeeId) {
 
 function renderSubscribePanel(panel, url) {
   panel.innerHTML = `
-    <div class="card">
-      <h3>Subscribe from your calendar app</h3>
-      <p>Add this URL as a subscribed calendar in Google Calendar, Apple Calendar, or Outlook.
-      New events show up automatically, though it may take a few hours to refresh.</p>
-      <input type="text" readonly value="${url}" style="width:100%; padding:8px; border:1px solid var(--border); border-radius:8px; font-size:12px; margin-bottom:8px;" onclick="this.select()" />
-      <button class="btn btn-secondary" id="cal-copy-url">Copy Link</button>
-    </div>
+    <p class="cal-modal-note">Add this URL as a subscribed calendar in Google Calendar, Apple Calendar, or Outlook.
+    New events show up automatically, though it may take a few hours to refresh.</p>
+    <input type="text" class="cal-url-input" readonly value="${escapeHtml(url)}" onclick="this.select()" />
+    <button class="btn" id="cal-copy-url">Copy link</button>
   `;
   panel.querySelector("#cal-copy-url").addEventListener("click", async (e) => {
     try {
       await navigator.clipboard.writeText(url);
       e.target.textContent = "Copied!";
-      setTimeout(() => (e.target.textContent = "Copy Link"), 1500);
+      setTimeout(() => (e.target.textContent = "Copy link"), 1500);
     } catch {
       /* clipboard API unavailable; the input above is selectable as a fallback */
     }
@@ -189,25 +216,37 @@ function renderSubscribePanel(panel, url) {
 
 async function renderBlockoutPanel(panel) {
   panel.innerHTML = `<div class="loading">Loading…</div>`;
-  const blockouts = await api.get("/api/calendar/blockouts");
+  let blockouts;
+  try {
+    blockouts = await api.get("/api/calendar/blockouts");
+  } catch (err) {
+    panel.innerHTML = `<div class="error-banner">${escapeHtml(err.message)}</div>`;
+    return;
+  }
   panel.innerHTML = `
-    <div class="card">
-      <h3>&#9888; Block-out dates</h3>
-      <p>No other CCA should hold an event on these dates. A proposal on one of them is flagged for review.</p>
-      ${
-        blockouts.length
-          ? blockouts
-              .map(
-                (b) => `
-        <div style="display:flex; justify-content:space-between; align-items:center; gap:8px; margin-top:8px;">
-          <div><div class="title">${escapeHtml(b.title)}</div><div class="meta">${b.date}</div></div>
+    <p class="cal-modal-note">No other CCA should hold an event on these dates. A proposal on one of them is flagged for review.</p>
+    ${
+      blockouts.length
+        ? blockouts
+            .map((b) => {
+              const when = new Date(b.date + "T00:00:00").toLocaleDateString(undefined, {
+                weekday: "short",
+                day: "numeric",
+                month: "short",
+                year: "numeric",
+              });
+              return `
+        <div class="cal-blockout-row">
+          <div>
+            <div class="title">${escapeHtml(b.title)}</div>
+            <div class="meta">${when}</div>
+          </div>
           <span class="badge" style="background:${b.committee_color}20; color:${b.committee_color}">${escapeHtml(b.committee_name)}</span>
-        </div>`
-              )
-              .join("")
-          : `<p>No upcoming block-out dates.</p>`
-      }
-    </div>
+        </div>`;
+            })
+            .join("")
+        : `<p class="cal-modal-note">No upcoming block-out dates.</p>`
+    }
   `;
 }
 
