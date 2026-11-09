@@ -328,8 +328,10 @@ export async function renderProposalDetail(root, user, proposalId, navigate) {
   await api.post(`/api/proposals/${proposalId}/comments/read`);
 
   const isAdmin = user.role === "admin";
-  const isOwner = proposal.submitted_by === user.id;
-  const canEdit = isOwner && ["draft", "needs_action"].includes(proposal.status);
+  // Any approved member of the proposal's committee can edit and resubmit it, not
+  // just whoever submitted it (the server enforces the same rule).
+  const isMember = (user.committees || []).some((c) => c.id === proposal.committee_id);
+  const canEdit = isMember && ["draft", "needs_action"].includes(proposal.status);
   const usesEmailWorkflow = proposal.category === "event" ||
     (proposal.category === "initiative" && proposal.portfolio === "welfare");
   const nextStatus = proposal.status === "in_review" && !usesEmailWorkflow
@@ -341,7 +343,7 @@ export async function renderProposalDetail(root, user, proposalId, navigate) {
   const canSubmitWithoutEmail = isAdmin && proposal.status === "in_review" && usesEmailWorkflow;
   // Owner submits a fresh draft, and resubmits after being sent back to needs_action —
   // both land on in_review. Every other status change is admin-only.
-  const canOwnerSubmit = isOwner && ["draft", "needs_action"].includes(proposal.status);
+  const canOwnerSubmit = isMember && ["draft", "needs_action"].includes(proposal.status);
   const adminHasAction = isAdmin && ["in_review", "submitted"].includes(proposal.status);
 
   root.innerHTML = `

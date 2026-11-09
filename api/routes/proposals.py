@@ -24,6 +24,7 @@ from api.models import (
 )
 from api.portfolio import (
     admin_committee_filter,
+    can_manage_proposal,
     category_allowed_for_committee,
     committee_portfolio,
     sends_confirmation_email as should_send_confirmation_email,
@@ -150,7 +151,7 @@ def list_proposals(
             if comment.author_id != user.id
             and (
                 user.role == UserRole.admin
-                or (proposal.submitted_by == user.id and comment.author.role == UserRole.admin)
+                or (can_manage_proposal(user, proposal) and comment.author.role == UserRole.admin)
             )
             and (read_at is None or _utc_naive(comment.created_at) > read_at)
         )
@@ -297,13 +298,14 @@ async def update_proposal(
 ) -> ProposalOut:
     proposal = get_visible_proposal(db, user, proposal_id)
     is_admin = user.role == UserRole.admin
-    is_owner = proposal.submitted_by == user.id
+    is_member = can_manage_proposal(user, proposal)
 
     if req.status is not None:
-        # Owner can submit a draft, and can resubmit after being sent back to
-        # needs_action — both land on in_review. Every other transition is admin-only.
+        # Any member of the committee can submit a draft, and resubmit after it was
+        # sent back to needs_action — both land on in_review. Every other transition
+        # is admin-only.
         owner_can_submit = (
-            is_owner
+            is_member
             and proposal.status in (ProposalStatus.draft, ProposalStatus.needs_action)
             and req.status == ProposalStatus.in_review
         )
@@ -346,10 +348,10 @@ async def update_proposal(
     if "category" in provided_content_fields and proposal.status in (ProposalStatus.grading, ProposalStatus.final):
         raise HTTPException(409, "The category cannot change once grading has started")
     if provided_content_fields:
-        if not is_admin and not (is_owner and proposal.status in (ProposalStatus.draft, ProposalStatus.needs_action)):
+        if not is_admin and not (is_member and proposal.status in (ProposalStatus.draft, ProposalStatus.needs_action)):
             raise HTTPException(
                 status.HTTP_403_FORBIDDEN,
-                "Proposal can only be edited by its owner while in needs_action",
+                "Proposal can only be edited by its committee while in draft or needs_action",
             )
         if "title" in provided_content_fields and req.title is None:
             raise HTTPException(status.HTTP_400_BAD_REQUEST, "title cannot be cleared")
@@ -444,8 +446,8 @@ async def upload_poster(
     user: User = Depends(get_current_user),
 ) -> ProposalOut:
     proposal = get_visible_proposal(db, user, proposal_id)
-    if proposal.submitted_by != user.id or proposal.status not in (ProposalStatus.draft, ProposalStatus.needs_action):
-        raise HTTPException(status.HTTP_403_FORBIDDEN, "Only the owner can upload a poster while editing")
+    if not can_manage_proposal(user, proposal) or proposal.status not in (ProposalStatus.draft, ProposalStatus.needs_action):
+        raise HTTPException(status.HTTP_403_FORBIDDEN, "Only the committee can upload a poster while editing")
     if proposal.category not in (ProposalCategory.event, ProposalCategory.initiative, ProposalCategory.welfare, ProposalCategory.merch):
         raise HTTPException(status.HTTP_400_BAD_REQUEST, "Posters are only used for Event, Initiative, Welfare, and Merch proposals")
     if poster.content_type not in {"image/jpeg", "image/png", "image/webp", "application/pdf"}:
