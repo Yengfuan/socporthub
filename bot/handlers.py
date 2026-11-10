@@ -7,7 +7,7 @@ from api.database import SessionLocal
 from api.models import DisposableRequest, DisposableStatus, Proposal, ProposalStatus, Reminder, ReminderTargetType, User, UserRole
 from api.portfolio import admin_committee_filter, committee_portfolio
 from api.services.disposables import decide_disposable
-from api.services.telegram import answer_callback_query, send_message, webapp_open_markup
+from api.services.telegram import answer_callback_query, get_bot_username, send_message, webapp_open_markup
 from bot import borrowing
 from bot.conversations import (
     cancel_conversation,
@@ -27,13 +27,13 @@ HELP_TEXT = (
     "/borrow — Borrow foldable tables or the cambro\n"
     "/return — Send a photo to prove borrowed items are returned\n"
     "/borrowed — Admins: where the borrowable items are now\n"
-    "/deleteborrow <id> — Admins: delete a borrow request\n"
+    "/deleteborrow &lt;id&gt; — Admins: delete a borrow request\n"
     "/cancel — Cancel the current bot flow\n"
     "/pending — Admins: show pending requests\n"
-    "/approve <id> — Admins: approve a disposable request\n"
-    "/reject <id> — Admins: reject a disposable request\n"
+    "/approve &lt;id&gt; — Admins: approve a disposable request\n"
+    "/reject &lt;id&gt; — Admins: reject a disposable request\n"
     "/status — Show your proposal status\n"
-    "/remind <message> — Nudge the admin\n"
+    "/remind &lt;message&gt; — Nudge the admin\n"
     "/help — Show this message\n\n"
     "Use the app to submit event proposals, track their status, and manage your "
     "committee's activity."
@@ -72,7 +72,11 @@ async def handle_update(update: dict) -> None:
         return
 
     command, _, argument = text.partition(" ")
-    command = command.split("@", 1)[0]
+    if command.startswith("/") and "@" in command:
+        command, _, recipient = command.partition("@")
+        username = await get_bot_username()
+        if not username or recipient.casefold() != username.casefold():
+            return
     if command == "/cancel":
         with SessionLocal() as db:
             await cancel_conversation(db, chat_id)
